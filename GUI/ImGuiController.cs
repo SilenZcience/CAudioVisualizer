@@ -5,7 +5,7 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System.Runtime.CompilerServices;
 
-namespace AudioVisualizerC.GUI;
+namespace CAudioVisualizer.GUI;
 
 public class ImGuiController : IDisposable
 {

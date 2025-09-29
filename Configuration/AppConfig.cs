@@ -1,10 +1,9 @@
 using System.Text.Json;
 
-namespace AudioVisualizerC.Configuration;
+namespace CAudioVisualizer.Configuration;
 
 public class AppConfig
 {
-    public bool ShowFPS { get; set; } = true;
     public int TargetFPS { get; set; } = 60;
     public bool EnableVSync { get; set; } = true;
 
@@ -28,7 +27,6 @@ public class AppConfig
                 var config = JsonSerializer.Deserialize<AppConfig>(json);
                 if (config != null)
                 {
-                    ShowFPS = config.ShowFPS;
                     TargetFPS = config.TargetFPS;
                     EnableVSync = config.EnableVSync;
                     VisualizerConfigs = config.VisualizerConfigs ?? new();
@@ -44,7 +42,6 @@ public class AppConfig
 
     public void ResetToDefaults()
     {
-        ShowFPS = true;
         TargetFPS = 60;
         EnableVSync = true;
         VisualizerConfigs.Clear();

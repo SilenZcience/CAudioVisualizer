@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using OpenTK.Mathematics;
 
-namespace AudioVisualizerC.Core;
+namespace CAudioVisualizer.Core;
 
-public class Vector3JsonConverter : JsonConverter<Vector3>
+public class VectorJsonConverter : JsonConverter<Vector3>
 {
     public override Vector3 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {

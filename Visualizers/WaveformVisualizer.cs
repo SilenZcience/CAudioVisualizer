@@ -2,9 +2,9 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
 using ImGuiNET;
-using AudioVisualizerC.Core;
+using CAudioVisualizer.Core;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public struct WaveformFrame
 {
@@ -46,44 +46,49 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private Vector2i _currentWindowSize = new Vector2i(800, 600);
     private List<WaveformFrame> _trailFrames = new();
 
-    private const string VertexShaderSource = @"
-#version 330 core
-
-layout(location = 0) in vec3 aPosition;
-layout(location = 1) in vec3 aColor;
-
-uniform mat4 projection;
-
-out vec3 vertexColor;
-
-void main()
-{
-    gl_Position = projection * vec4(aPosition, 1.0);
-    vertexColor = aColor;
-}";
-
-    private const string FragmentShaderSource = @"
-#version 330 core
-
-in vec3 vertexColor;
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vec4(vertexColor, 1.0);
-}";
-
     public void Initialize()
     {
         if (_initialized) return;
 
+        SetupShaders();
+        SetupVertexData();
+        _initialized = true;
+    }
+
+    private void SetupShaders()
+    {
+        string vertexShaderSource = @"
+            #version 330 core
+            layout(location = 0) in vec3 aPosition;
+            layout(location = 1) in vec3 aColor;
+
+            uniform mat4 projection;
+            out vec3 vertexColor;
+
+            void main()
+            {
+                gl_Position = projection * vec4(aPosition, 1.0);
+                vertexColor = aColor;
+            }";
+
+        string fragmentShaderSource = @"
+            #version 330 core
+
+            in vec3 vertexColor;
+            out vec4 FragColor;
+
+            void main()
+            {
+                FragColor = vec4(vertexColor, 1.0);
+            }";
+
         // Create and compile shaders
         int vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, VertexShaderSource);
+        GL.ShaderSource(vertexShader, vertexShaderSource);
         GL.CompileShader(vertexShader);
 
         int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, FragmentShaderSource);
+        GL.ShaderSource(fragmentShader, fragmentShaderSource);
         GL.CompileShader(fragmentShader);
 
         // Create shader program
@@ -95,7 +100,10 @@ void main()
         // Clean up shader objects
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
+    }
 
+    private void SetupVertexData()
+    {
         // Generate buffers
         _vertexArrayObject = GL.GenVertexArray();
         _vertexBufferObject = GL.GenBuffer();
@@ -110,8 +118,6 @@ void main()
         // Color attribute
         GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
         GL.EnableVertexAttribArray(1);
-
-        _initialized = true;
     }
 
     public void Update(float[] audioData, double deltaTime)
@@ -140,10 +146,7 @@ void main()
 
         if (_config.EnableFadeTrail)
         {
-            // Update trail frames - fade existing ones and add new one
             UpdateTrailFrames(windowSize);
-
-            // Render all trail frames
             RenderTrailFrames();
         }
         else
@@ -157,11 +160,8 @@ void main()
         }
     }
 
-
-
     private void UpdateTrailFrames(Vector2i windowSize)
     {
-        // Generate current waveform
         var currentWaveform = GenerateCurrentWaveform(windowSize);
 
         // Add current waveform to trail
@@ -182,6 +182,23 @@ void main()
             {
                 _trailFrames[i] = frame;
             }
+        }
+    }
+
+    private void RenderTrailFrames()
+    {
+        GL.BindVertexArray(_vertexArrayObject);
+
+        // Render trail frames from oldest to newest (so newest appears on top)
+        for (int i = _trailFrames.Count - 1; i >= 0; i--)
+        {
+            var frame = _trailFrames[i];
+            if (frame.Vertices.Count == 0) continue;
+
+            // Apply brightness to vertices
+            var fadedVertices = ApplyBrightnessToVertices(frame.Vertices, frame.Brightness);
+
+            RenderWaveform(fadedVertices, frame.LineWidth);
         }
     }
 
@@ -269,23 +286,6 @@ void main()
         };
     }
 
-    private void RenderTrailFrames()
-    {
-        GL.BindVertexArray(_vertexArrayObject);
-
-        // Render trail frames from oldest to newest (so newest appears on top)
-        for (int i = _trailFrames.Count - 1; i >= 0; i--)
-        {
-            var frame = _trailFrames[i];
-            if (frame.Vertices.Count == 0) continue;
-
-            // Apply brightness to vertices
-            var fadedVertices = ApplyBrightnessToVertices(frame.Vertices, frame.Brightness);
-
-            RenderWaveform(fadedVertices, frame.LineWidth);
-        }
-    }
-
     private List<float> ApplyBrightnessToVertices(List<float> vertices, float brightness)
     {
         var fadedVertices = new List<float>(vertices);
@@ -320,9 +320,9 @@ void main()
         // Draw waveform as line strip
         GL.DrawArrays(PrimitiveType.LineStrip, 0, vertices.Count / 6); // 6 floats per vertex (3 pos + 3 color)
 
-        // Reset line width and disable smoothing
-        GL.LineWidth(1.0f);
-        GL.Disable(EnableCap.LineSmooth);
+        // // Reset line width and disable smoothing
+        // GL.LineWidth(1.0f);
+        // GL.Disable(EnableCap.LineSmooth);
     }
 
     public void RenderConfigGui()
@@ -417,13 +417,32 @@ void main()
         }
     }
 
+    public string SaveConfiguration()
+    {
+        try
+        {
+            _config.Enabled = IsEnabled;
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Converters = { new VectorJsonConverter() }
+            };
+            return JsonSerializer.Serialize(_config, options);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            return "{}";
+        }
+    }
+
     public void LoadConfiguration(string json)
     {
         try
         {
             var options = new JsonSerializerOptions
             {
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             var config = JsonSerializer.Deserialize<WaveformConfig>(json, options);
             if (config != null)
@@ -435,25 +454,6 @@ void main()
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
-        }
-    }
-
-    public string SaveConfiguration()
-    {
-        try
-        {
-            _config.Enabled = IsEnabled;
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Converters = { new Vector3JsonConverter() }
-            };
-            return JsonSerializer.Serialize(_config, options);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
-            return "{}";
         }
     }
 

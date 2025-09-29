@@ -2,9 +2,9 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
 using ImGuiNET;
-using AudioVisualizerC.Core;
+using CAudioVisualizer.Core;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public struct TriangleFrame
 {
@@ -151,10 +151,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         if (_config.EnableFadeTrail)
         {
-            // Update trail frames - fade existing ones and add new one
             UpdateTrailFrames(windowSize);
-
-            // Render all trail frames
             RenderTrailFrames();
         }
         else
@@ -182,24 +179,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private List<float> GenerateTriangleVertices(Vector2i windowSize)
-    {
-        // Generate triangle frame and convert to vertex list
-        var triangleFrame = GenerateCurrentTriangle(windowSize);
-        var vertices = new List<float>();
-
-        for (int i = 0; i < 3; i++)
-        {
-            // Add vertex: position (x, y, z) + color (r, g, b)
-            vertices.AddRange(new[] {
-                triangleFrame.Vertices[i].X, triangleFrame.Vertices[i].Y, triangleFrame.Vertices[i].Z,
-                triangleFrame.Color.X, triangleFrame.Color.Y, triangleFrame.Color.Z
-            });
-        }
-
-        return vertices;
-    }
-
     private void UpdateTrailFrames(Vector2i windowSize)
     {
         // Generate current triangle
@@ -224,6 +203,61 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
                 _trailFrames[i] = frame;
             }
         }
+    }
+
+    private void RenderTrailFrames()
+    {
+        GL.BindVertexArray(_vertexArrayObject);
+
+        // Draw triangles in reverse order (oldest first, newest last)
+        for (int i = _trailFrames.Count - 1; i >= 0; i--)
+        {
+            var frame = _trailFrames[i];
+
+            // Create vertex data with faded color
+            var vertices = new List<float>();
+            Vector3 fadedColor = frame.Color * frame.Brightness;
+
+            for (int j = 0; j < 3; j++)
+            {
+                vertices.AddRange(new[] {
+                    frame.Vertices[j].X, frame.Vertices[j].Y, frame.Vertices[j].Z,
+                    fadedColor.X, fadedColor.Y, fadedColor.Z
+                });
+            }
+
+            // Upload and draw
+            GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
+            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+
+            if (frame.Filled)
+            {
+                GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            }
+            else
+            {
+                GL.LineWidth(frame.LineWidth);
+                GL.DrawArrays(PrimitiveType.LineLoop, 0, 3);
+            }
+        }
+    }
+
+    private List<float> GenerateTriangleVertices(Vector2i windowSize)
+    {
+        // Generate triangle frame and convert to vertex list
+        var triangleFrame = GenerateCurrentTriangle(windowSize);
+        var vertices = new List<float>();
+
+        for (int i = 0; i < 3; i++)
+        {
+            // Add vertex: position (x, y, z) + color (r, g, b)
+            vertices.AddRange(new[] {
+                triangleFrame.Vertices[i].X, triangleFrame.Vertices[i].Y, triangleFrame.Vertices[i].Z,
+                triangleFrame.Color.X, triangleFrame.Color.Y, triangleFrame.Color.Z
+            });
+        }
+
+        return vertices;
     }
 
     private TriangleFrame GenerateCurrentTriangle(Vector2i windowSize)
@@ -281,43 +315,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             Filled = _config.Filled,
             LineWidth = _config.LineThickness
         };
-    }
-
-    private void RenderTrailFrames()
-    {
-        GL.BindVertexArray(_vertexArrayObject);
-
-        // Draw triangles in reverse order (oldest first, newest last)
-        for (int i = _trailFrames.Count - 1; i >= 0; i--)
-        {
-            var frame = _trailFrames[i];
-
-            // Create vertex data with faded color
-            var vertices = new List<float>();
-            Vector3 fadedColor = frame.Color * frame.Brightness;
-
-            for (int j = 0; j < 3; j++)
-            {
-                vertices.AddRange(new[] {
-                    frame.Vertices[j].X, frame.Vertices[j].Y, frame.Vertices[j].Z,
-                    fadedColor.X, fadedColor.Y, fadedColor.Z
-                });
-            }
-
-            // Upload and draw
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
-
-            if (frame.Filled)
-            {
-                GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            }
-            else
-            {
-                GL.LineWidth(frame.LineWidth);
-                GL.DrawArrays(PrimitiveType.LineLoop, 0, 3);
-            }
-        }
     }
 
     public void RenderConfigGui()
@@ -453,7 +450,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             return JsonSerializer.Serialize(_config, options);
         }
@@ -470,7 +467,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             var options = new JsonSerializerOptions
             {
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             var config = JsonSerializer.Deserialize<TriangleConfig>(json, options);
             if (config != null)

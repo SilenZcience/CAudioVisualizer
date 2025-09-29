@@ -1,6 +1,6 @@
 using OpenTK.Mathematics;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public interface IVisualizer : IDisposable
 {

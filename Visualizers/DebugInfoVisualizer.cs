@@ -2,9 +2,9 @@ using OpenTK.Mathematics;
 using ImGuiNET;
 using System.Diagnostics;
 using System.Text.Json;
-using AudioVisualizerC.Core;
+using CAudioVisualizer.Core;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public class DebugInfoConfig
 {
@@ -228,12 +228,20 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
     public string SaveConfiguration()
     {
-        var options = new JsonSerializerOptions
+        try
         {
-            WriteIndented = true,
-            Converters = { new Vector3JsonConverter(), new Vector2JsonConverter() }
-        };
-        return JsonSerializer.Serialize(_config, options);
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Converters = { new VectorJsonConverter(), new Vector2JsonConverter() }
+            };
+            return JsonSerializer.Serialize(_config, options);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            return "{}";
+        }
     }
 
     public void LoadConfiguration(string json)
@@ -242,15 +250,15 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         {
             var options = new JsonSerializerOptions
             {
-                Converters = { new Vector3JsonConverter(), new Vector2JsonConverter() }
+                Converters = { new VectorJsonConverter(), new Vector2JsonConverter() }
             };
             var config = JsonSerializer.Deserialize<DebugInfoConfig>(json, options);
             if (config != null)
                 _config = config;
         }
-        catch
+        catch (Exception ex)
         {
-            // Use default config if deserialization fails
+            Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
         }
     }
 

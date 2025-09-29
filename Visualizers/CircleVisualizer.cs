@@ -2,9 +2,9 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
 using ImGuiNET;
-using AudioVisualizerC.Core;
+using CAudioVisualizer.Core;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public struct CircleDot
 {
@@ -51,8 +51,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private int _shaderProgram;
     private bool _initialized = false;
     private Random _random;
-    private List<CircleFrame> _trailFrames = new();
+    private float[] _audioData = Array.Empty<float>();
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Fallback size (updated in render)
+    private List<CircleFrame> _trailFrames = new();
 
     public CircleVisualizer()
     {
@@ -88,6 +89,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
         string fragmentShaderSource = @"
             #version 460 core
+
             in vec3 vertexColor;
             out vec4 FragColor;
 
@@ -133,8 +135,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
         GL.EnableVertexAttribArray(1);
     }
-
-    private float[] _audioData = Array.Empty<float>();
 
     public void Update(float[] waveformData, double deltaTime)
     {
@@ -460,7 +460,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             return JsonSerializer.Serialize(_config, options);
         }
@@ -477,7 +477,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         {
             var options = new JsonSerializerOptions
             {
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             var config = JsonSerializer.Deserialize<CircleConfig>(json, options);
             if (config != null)

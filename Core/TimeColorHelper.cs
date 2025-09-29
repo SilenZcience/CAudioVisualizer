@@ -1,6 +1,6 @@
 using OpenTK.Mathematics;
 
-namespace AudioVisualizerC.Core;
+namespace CAudioVisualizer.Core;
 
 public static class TimeColorHelper
 {
@@ -9,7 +9,6 @@ public static class TimeColorHelper
         // Create a time-based color that cycles through hues
         float time = (float)(DateTime.Now.TimeOfDay.TotalSeconds * 0.1); // Slow cycling
 
-        // Use HSV to RGB conversion for smooth color transitions
         float hue = (time % 1.0f) * 360.0f; // 0-360 degrees
         float saturation = 1.0f;
         float value = 1.0f;
@@ -27,17 +26,12 @@ public static class TimeColorHelper
         float green = (float)now.Minute / 60.0f;
         float blue = (float)now.Second / 60.0f;
 
-        // Clamp values to valid range
-        red = Math.Max(0.0f, Math.Min(red, 1.0f));
-        green = Math.Max(0.0f, Math.Min(green, 1.0f));
-        blue = Math.Max(0.0f, Math.Min(blue, 1.0f));
-
         return new Vector3(red, green, blue);
     }
 
     public static Vector3 HsvToRgb(float h, float s, float v)
     {
-        h = h / 60.0f;
+        h /= 60.0f;
         int i = (int)Math.Floor(h);
         float f = h - i;
         float p = v * (1.0f - s);

@@ -2,11 +2,11 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
 using ImGuiNET;
-using AudioVisualizerC.Core;
+using CAudioVisualizer.Core;
 using MathNet.Numerics;
 using MathNet.Numerics.IntegralTransforms;
 
-namespace AudioVisualizerC.Visualizers;
+namespace CAudioVisualizer.Visualizers;
 
 public struct SpectrumBar
 {
@@ -557,7 +557,7 @@ public class SpectrumBarsVisualizer : IVisualizer, IConfigurable
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             return JsonSerializer.Serialize(_config, options);
         }
@@ -574,7 +574,7 @@ public class SpectrumBarsVisualizer : IVisualizer, IConfigurable
         {
             var options = new JsonSerializerOptions
             {
-                Converters = { new Vector3JsonConverter() }
+                Converters = { new VectorJsonConverter() }
             };
             var config = JsonSerializer.Deserialize<SpectrumBarsConfig>(json, options);
             if (config != null)

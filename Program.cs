@@ -3,34 +3,25 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
-using System.Diagnostics;
-using AudioVisualizerC.Core;
-using AudioVisualizerC.Visualizers;
-using AudioVisualizerC.GUI;
-using AudioVisualizerC.Configuration;
+using CAudioVisualizer.Core;
+using CAudioVisualizer.GUI;
+using CAudioVisualizer.Configuration;
 
-namespace AudioVisualizerC;
+namespace CAudioVisualizer;
 
 public class AudioVisualizerWindow : GameWindow
 {
     private WasapiLoopbackCapture? _capture;
     private readonly List<float> _audioBuffer = new();
     private readonly object _bufferLock = new();
-    // Audio processing constants
     private const int BUFFER_SIZE = 2048;
 
-    // Waveform data for visualizers
     private float[] _waveformData = new float[BUFFER_SIZE];
 
-
-
-    // New modular system components
     private VisualizerManager _visualizerManager = null!;
 
-    // ImGui components
     private ImGuiController _imGuiController = null!;
     private ConfigurationGui _configGui = null!;
     private AppConfig _appConfig = null!;
@@ -49,39 +40,25 @@ public class AudioVisualizerWindow : GameWindow
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-        // Initialize ImGui
         _imGuiController = new ImGuiController(ClientSize.X, ClientSize.Y);
 
-        // Initialize application configuration
         _appConfig = new AppConfig();
         _appConfig.LoadConfiguration("config.json");
 
-        // Initialize the modular system
         _visualizerManager = new VisualizerManager();
 
-        // Load visualizer configurations
         _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
 
-        // Initialize configuration GUI with callback for immediate config changes
         _configGui = new ConfigurationGui(_visualizerManager, _appConfig, ApplyConfigurationSettings);
 
         SetupAudioCapture();
 
-
-
-        // Apply initial configuration settings
         ApplyConfigurationSettings();
     }
 
     private void ApplyConfigurationSettings()
     {
-        // Apply target FPS
-        if (_appConfig.TargetFPS > 0)
-        {
-            UpdateFrequency = _appConfig.TargetFPS;
-        }
-
-        // Apply VSync setting
+        UpdateFrequency = _appConfig.TargetFPS;
         VSync = _appConfig.EnableVSync ? VSyncMode.On : VSyncMode.Off;
     }
 
@@ -90,6 +67,12 @@ public class AudioVisualizerWindow : GameWindow
         try
         {
             _capture = new WasapiLoopbackCapture();
+
+            Console.WriteLine($"Sample Rate: {_capture.WaveFormat.SampleRate} Hz");
+            Console.WriteLine($"Channels: {_capture.WaveFormat.Channels}");
+            Console.WriteLine($"Bits Per Sample: {_capture.WaveFormat.BitsPerSample}");
+            Console.WriteLine($"Bytes Per Second: {_capture.WaveFormat.AverageBytesPerSecond}");
+
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += (s, e) => Console.WriteLine("Recording stopped");
             _capture.StartRecording();
@@ -99,8 +82,6 @@ public class AudioVisualizerWindow : GameWindow
             Console.WriteLine($"Failed to initialize audio capture: {ex.Message}");
         }
     }
-
-
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
@@ -115,11 +96,10 @@ public class AudioVisualizerWindow : GameWindow
                 _audioBuffer.Add(sample);
             }
 
-            // Keep buffer size manageable - more efficient removal
-            if (_audioBuffer.Count > BUFFER_SIZE * 2) // Reduced buffer size for lower latency
+            if (_audioBuffer.Count > BUFFER_SIZE * 2)
             {
                 int samplesToRemove = _audioBuffer.Count - BUFFER_SIZE * 2;
-                _audioBuffer.RemoveRange(0, samplesToRemove); // Remove multiple at once
+                _audioBuffer.RemoveRange(0, samplesToRemove);
             }
         }
     }
@@ -129,8 +109,6 @@ public class AudioVisualizerWindow : GameWindow
         lock (_bufferLock)
         {
             if (_audioBuffer.Count < BUFFER_SIZE) return;
-
-            // Store waveform data for visualizers
             Array.Copy(_audioBuffer.TakeLast(BUFFER_SIZE).ToArray(), _waveformData, BUFFER_SIZE);
         }
     }
@@ -141,20 +119,16 @@ public class AudioVisualizerWindow : GameWindow
 
         ProcessAudioData();
 
-        // Update ImGui
         _imGuiController.Update(this, (float)e.Time);
 
-        // Clear the screen
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
-        // Set up projection matrix for visualizers using screen pixel coordinates
         var projection = Matrix4.CreateOrthographicOffCenter(0, ClientSize.X, ClientSize.Y, 0, -1, 1);
 
         // Update and render all visualizers
         _visualizerManager.UpdateVisualizers(_waveformData, e.Time);
         _visualizerManager.RenderVisualizers(projection, ClientSize);
 
-        // Render ImGui
         if (_showConfigWindow)
         {
             _configGui.Render();
@@ -174,7 +148,6 @@ public class AudioVisualizerWindow : GameWindow
             Close();
         }
 
-        // Toggle configuration GUI with F3
         if (KeyboardState.IsKeyPressed(Keys.F3))
         {
             _showConfigWindow = !_showConfigWindow;
@@ -204,7 +177,6 @@ public class AudioVisualizerWindow : GameWindow
     {
         base.OnUnload();
 
-        // Save visualizer configurations to AppConfig before saving
         if (_appConfig != null && _visualizerManager != null)
         {
             _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
@@ -223,17 +195,12 @@ static class Program
 {
     static void Main()
     {
-        // Load configuration early to get initial settings
-        var tempConfig = new AudioVisualizerC.Configuration.AppConfig();
-        tempConfig.LoadConfiguration("config.json");
-
         var gameWindowSettings = GameWindowSettings.Default;
-        // Get primary monitor size for borderless fullscreen
         var primaryMonitor = Monitors.GetPrimaryMonitor();
 
         var nativeWindowSettings = new NativeWindowSettings()
         {
-            Title = "Audio Visualizer - OpenGL 4.6",
+            Title = "Audio Visualizer - Made by Silas Kraume",
             Flags = ContextFlags.ForwardCompatible,
             Profile = ContextProfile.Core,
             APIVersion = new Version(4, 6),

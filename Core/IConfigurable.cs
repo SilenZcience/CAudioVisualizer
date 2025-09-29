@@ -1,4 +1,4 @@
-namespace AudioVisualizerC.Core;
+namespace CAudioVisualizer.Core;
 
 public interface IConfigurable
 {

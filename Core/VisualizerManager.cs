@@ -1,7 +1,7 @@
 using OpenTK.Mathematics;
-using AudioVisualizerC.Visualizers;
+using CAudioVisualizer.Visualizers;
 
-namespace AudioVisualizerC.Core;
+namespace CAudioVisualizer.Core;
 
 public class VisualizerManager : IDisposable
 {
@@ -16,7 +16,6 @@ public class VisualizerManager : IDisposable
 
     private void InitializeVisualizers()
     {
-        // Register built-in visualizers
         RegisterVisualizer(new CircleVisualizer());
         RegisterVisualizer(new WaveformVisualizer());
         RegisterVisualizer(new ReverseWaveformVisualizer());
@@ -24,7 +23,6 @@ public class VisualizerManager : IDisposable
         RegisterVisualizer(new SpectrumBarsVisualizer());
         RegisterVisualizer(new DebugInfoVisualizer());
 
-        // Initialize all visualizers
         foreach (var visualizer in _visualizers.Values)
         {
             visualizer.Initialize();
@@ -49,7 +47,9 @@ public class VisualizerManager : IDisposable
         {
             visualizer.Update(waveformData, deltaTime);
         }
-    }    public void RenderVisualizers(Matrix4 projection, Vector2i windowSize)
+    }
+
+    public void RenderVisualizers(Matrix4 projection, Vector2i windowSize)
     {
         foreach (var visualizer in _visualizers.Values.Where(v => v.IsEnabled))
         {

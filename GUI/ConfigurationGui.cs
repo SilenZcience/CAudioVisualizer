@@ -1,8 +1,8 @@
 using ImGuiNET;
-using AudioVisualizerC.Core;
-using AudioVisualizerC.Configuration;
+using CAudioVisualizer.Core;
+using CAudioVisualizer.Configuration;
 
-namespace AudioVisualizerC.GUI;
+namespace CAudioVisualizer.GUI;
 
 public class ConfigurationGui
 {
@@ -83,7 +83,7 @@ public class ConfigurationGui
                 _appConfig.TargetFPS = targetFps;
                 _onConfigChanged?.Invoke();
                 // Reset FPS statistics when target changes
-                AudioVisualizerC.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+                CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
             }
             ImGui.SameLine();
             ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied in real-time)");
@@ -94,7 +94,7 @@ public class ConfigurationGui
                 _appConfig.EnableVSync = enableVSync;
                 _onConfigChanged?.Invoke();
                 // Reset FPS statistics when target changes
-                AudioVisualizerC.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+                CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
             }
             ImGui.SameLine();
             ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied in real-time)");
