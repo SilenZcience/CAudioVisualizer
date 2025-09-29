@@ -32,6 +32,21 @@ public class AudioVisualizerWindow : GameWindow
     {
     }
 
+    public void SwitchToMonitor(int monitorIndex)
+    {
+        var monitors = Monitors.GetMonitors();
+        if (monitorIndex >= 0 && monitorIndex < monitors.Count)
+        {
+            var selectedMonitor = monitors[monitorIndex];
+            Location = new Vector2i(selectedMonitor.WorkArea.Min.X, selectedMonitor.WorkArea.Min.Y);
+            ClientSize = new Vector2i(selectedMonitor.HorizontalResolution, selectedMonitor.VerticalResolution);
+
+            // Update viewport for OpenGL
+            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+            _imGuiController?.WindowResized(ClientSize.X, ClientSize.Y);
+        }
+    }
+
     protected override void OnLoad()
     {
         base.OnLoad();
@@ -49,7 +64,7 @@ public class AudioVisualizerWindow : GameWindow
 
         _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
 
-        _configGui = new ConfigurationGui(_visualizerManager, _appConfig, ApplyConfigurationSettings);
+        _configGui = new ConfigurationGui(_visualizerManager, _appConfig, ApplyConfigurationSettings, this);
 
         SetupAudioCapture();
 
@@ -177,6 +192,9 @@ public class AudioVisualizerWindow : GameWindow
     {
         base.OnUnload();
 
+        // Force ImGui to save its settings before shutdown
+        ImGuiNET.ImGui.SaveIniSettingsToDisk("imgui.ini");
+
         if (_appConfig != null && _visualizerManager != null)
         {
             _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
@@ -195,8 +213,17 @@ static class Program
 {
     static void Main()
     {
+        // Load configuration early to get monitor selection
+        var tempConfig = new CAudioVisualizer.Configuration.AppConfig();
+        tempConfig.LoadConfiguration("config.json");
+
         var gameWindowSettings = GameWindowSettings.Default;
-        var primaryMonitor = Monitors.GetPrimaryMonitor();
+
+        // Get selected monitor or fallback to primary
+        var monitors = Monitors.GetMonitors();
+        var selectedMonitor = monitors.Count > tempConfig.SelectedMonitorIndex && tempConfig.SelectedMonitorIndex >= 0
+            ? monitors[tempConfig.SelectedMonitorIndex]
+            : Monitors.GetPrimaryMonitor();
 
         var nativeWindowSettings = new NativeWindowSettings()
         {
@@ -206,8 +233,8 @@ static class Program
             APIVersion = new Version(4, 6),
             WindowBorder = WindowBorder.Hidden,
             WindowState = WindowState.Normal,
-            ClientSize = new Vector2i(primaryMonitor.HorizontalResolution, primaryMonitor.VerticalResolution),
-            Location = new Vector2i(0, 0)
+            ClientSize = new Vector2i(selectedMonitor.HorizontalResolution, selectedMonitor.VerticalResolution),
+            Location = new Vector2i(selectedMonitor.WorkArea.Min.X, selectedMonitor.WorkArea.Min.Y)
         };
 
         using var window = new AudioVisualizerWindow(gameWindowSettings, nativeWindowSettings);

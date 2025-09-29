@@ -6,6 +6,7 @@ public class AppConfig
 {
     public int TargetFPS { get; set; } = 60;
     public bool EnableVSync { get; set; } = true;
+    public int SelectedMonitorIndex { get; set; } = 0; // Index of the selected monitor
 
     // Visualizer settings
     public Dictionary<string, string> VisualizerConfigs { get; set; } = new();
@@ -29,6 +30,7 @@ public class AppConfig
                 {
                     TargetFPS = config.TargetFPS;
                     EnableVSync = config.EnableVSync;
+                    SelectedMonitorIndex = config.SelectedMonitorIndex;
                     VisualizerConfigs = config.VisualizerConfigs ?? new();
                     EnabledVisualizers = config.EnabledVisualizers ?? new();
                 }
@@ -44,6 +46,7 @@ public class AppConfig
     {
         TargetFPS = 60;
         EnableVSync = true;
+        SelectedMonitorIndex = 0;
         VisualizerConfigs.Clear();
         EnabledVisualizers.Clear();
     }

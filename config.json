@@ -1,6 +1,7 @@
 {
   "TargetFPS": 165,
   "EnableVSync": false,
+  "SelectedMonitorIndex": 0,
   "VisualizerConfigs": {
     "Circle": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022CircleSize\u0022: 34.527,\r\n  \u0022DotsMin\u0022: 873,\r\n  \u0022DotsMax\u0022: 1000,\r\n  \u0022DotSize\u0022: 2,\r\n  \u0022PositionX\u0022: 1720,\r\n  \u0022PositionY\u0022: 720,\r\n  \u0022Sensitivity\u0022: 1.95,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.847,\r\n  \u0022TrailLength\u0022: 50\r\n}",
     "Waveform": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 0\r\n  },\r\n  \u0022Amplitude\u0022: 1.004,\r\n  \u0022PositionY\u0022: 720,\r\n  \u0022LineThickness\u0022: 1,\r\n  \u0022StartX\u0022: 0,\r\n  \u0022EndX\u0022: 1720,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022PositionX\u0022: 0.5,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.8,\r\n  \u0022TrailLength\u0022: 30\r\n}",

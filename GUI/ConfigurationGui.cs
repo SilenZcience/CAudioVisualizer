@@ -1,6 +1,7 @@
 using ImGuiNET;
 using CAudioVisualizer.Core;
 using CAudioVisualizer.Configuration;
+using OpenTK.Windowing.Desktop;
 
 namespace CAudioVisualizer.GUI;
 
@@ -9,12 +10,14 @@ public class ConfigurationGui
     private readonly VisualizerManager _visualizerManager;
     private readonly AppConfig _appConfig;
     private readonly Action? _onConfigChanged;
+    private readonly CAudioVisualizer.AudioVisualizerWindow? _window;
 
-    public ConfigurationGui(VisualizerManager visualizerManager, AppConfig appConfig, Action? onConfigChanged = null)
+    public ConfigurationGui(VisualizerManager visualizerManager, AppConfig appConfig, Action? onConfigChanged = null, CAudioVisualizer.AudioVisualizerWindow? window = null)
     {
         _visualizerManager = visualizerManager;
         _appConfig = appConfig;
         _onConfigChanged = onConfigChanged;
+        _window = window;
     }
 
     public void Render()
@@ -98,6 +101,28 @@ public class ConfigurationGui
             }
             ImGui.SameLine();
             ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied in real-time)");
+
+            ImGui.Separator();
+            ImGui.Text("Display Settings");
+            ImGui.Separator();
+
+            // Monitor selection
+            var monitors = Monitors.GetMonitors();
+            var monitorNames = new string[monitors.Count];
+            for (int i = 0; i < monitors.Count; i++)
+            {
+                var monitor = monitors[i];
+                monitorNames[i] = $"Monitor {i + 1} ({monitor.HorizontalResolution}x{monitor.VerticalResolution})";
+            }
+
+            int currentMonitor = Math.Max(0, Math.Min(_appConfig.SelectedMonitorIndex, monitors.Count - 1));
+            if (ImGui.Combo("Target Monitor", ref currentMonitor, monitorNames, monitorNames.Length))
+            {
+                _appConfig.SelectedMonitorIndex = currentMonitor;
+                _window?.SwitchToMonitor(currentMonitor);
+            }
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied immediately)");
 
             ImGui.EndTabItem();
         }
