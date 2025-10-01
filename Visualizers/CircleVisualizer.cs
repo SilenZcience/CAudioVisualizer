@@ -37,6 +37,7 @@ public class CircleConfig
     public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
     public float FadeSpeed { get; set; } = 0.95f; // How fast circles fade (0.9 = slow, 0.99 = fast)
     public int TrailLength { get; set; } = 20; // Maximum number of trail circles
+    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
 }
 
 public class CircleVisualizer : IVisualizer, IConfigurable
@@ -52,6 +53,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private bool _initialized = false;
     private Random _random;
     private float[] _audioData = Array.Empty<float>();
+    private float[] _fftData = Array.Empty<float>();
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Fallback size (updated in render)
     private List<CircleFrame> _trailFrames = new();
 
@@ -136,9 +138,10 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         GL.EnableVertexAttribArray(1);
     }
 
-    public void Update(float[] waveformData, double deltaTime)
+    public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
         _audioData = waveformData;
+        _fftData = fftData;
     }
 
     public void Render(Matrix4 projection, Vector2i windowSize)
@@ -242,8 +245,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     {
         var dotPositions = new List<Vector3>();
 
+        // Choose data source based on config
+        float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+
         // Check if we have audio data to work with
-        if (_audioData.Length == 0)
+        if (dataSource.Length == 0)
             return new CircleFrame
             {
                 DotPositions = dotPositions,
@@ -271,9 +277,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         for (int i = 1; i <= dots; i += 2)
         {
             // Get random audio data point - exactly like GDI+ version with bounds checking
-            if (_audioData.Length == 0) continue;
-            int dataIndex = _random.Next(0, _audioData.Length);
-            float fft = Math.Abs(_audioData[dataIndex]);
+            if (dataSource.Length == 0) continue;
+            int dataIndex = _random.Next(0, dataSource.Length);
+            float fft = Math.Abs(dataSource[dataIndex]);
 
             // Apply sensitivity and power scaling similar to original (sqrt of sqrt) - exactly like GDI+ version
             float rootRootFft = _config.CircleSize * (float)Math.Sqrt(Math.Sqrt(fft * 100000 * _config.Sensitivity));
@@ -291,9 +297,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         for (int i = 2; i <= dots; i += 2)
         {
             // Get random audio data point - exactly like GDI+ version with bounds checking
-            if (_audioData.Length == 0) continue;
-            int dataIndex = _random.Next(0, _audioData.Length);
-            float fft = Math.Abs(_audioData[dataIndex]);
+            if (dataSource.Length == 0) continue;
+            int dataIndex = _random.Next(0, dataSource.Length);
+            float fft = Math.Abs(dataSource[dataIndex]);
 
             // Apply sensitivity and power scaling - exactly like GDI+ version
             float rootRootFft = _config.CircleSize * (float)Math.Sqrt(Math.Sqrt(fft * 100000 * _config.Sensitivity));
@@ -399,6 +405,19 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, _currentWindowSize.Y))
         {
             _config.PositionY = posY;
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Data Source");
+        ImGui.Separator();
+
+        bool useFFT = _config.UseFFT;
+        if (ImGui.Checkbox("Use FFT Data", ref useFFT))
+            _config.UseFFT = useFFT;
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.");
         }
 
         ImGui.Spacing();

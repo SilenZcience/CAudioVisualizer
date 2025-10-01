@@ -33,6 +33,7 @@ public class TriangleConfig
     public int TrailLength { get; set; } = 20; // Maximum number of trail triangles
     public int PositionX { get; set; } = -1; // X position in pixels (will be set to center on first use)
     public int PositionY { get; set; } = -1; // Y position in pixels (will be set to center on first use)
+    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
 }
 
 public class TriangleVisualizer : IVisualizer, IConfigurable
@@ -48,6 +49,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     private bool _initialized = false;
     private float _currentRotation = 0.0f;
     private float[] _audioData = Array.Empty<float>();
+    private float[] _fftData = Array.Empty<float>();
     private List<TriangleFrame> _trailFrames = new();
     private Vector2i _currentWindowSize = new Vector2i(800, 600);
 
@@ -120,9 +122,10 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         GL.EnableVertexAttribArray(1);
     }
 
-    public void Update(float[] waveformData, double deltaTime)
+    public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
         _audioData = waveformData;
+        _fftData = fftData;
 
         // Update rotation based on speed (degrees per frame, matching GDI+ behavior)
         _currentRotation += _config.RotationSpeed;
@@ -266,16 +269,19 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         int centerX = _config.PositionX;
         int centerY = _config.PositionY;
 
+        // Select data source based on configuration
+        float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+
         // Calculate the RMS (Root Mean Square) for better amplitude detection - exactly like GDI+ version
         float rms = 0.0f;
-        if (_audioData.Length > 0)
+        if (dataSource.Length > 0)
         {
             float sum = 0.0f;
-            for (int i = 0; i < _audioData.Length; i++)
+            for (int i = 0; i < dataSource.Length; i++)
             {
-                sum += _audioData[i] * _audioData[i];
+                sum += dataSource[i] * dataSource[i];
             }
-            rms = (float)Math.Sqrt(sum / _audioData.Length);
+            rms = (float)Math.Sqrt(sum / dataSource.Length);
         }
 
         // Apply sensitivity and power scaling for more dramatic size changes - exactly like GDI+ version
@@ -330,6 +336,17 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         if (ImGui.SliderFloat("Amplitude", ref amplitude, 100.0f, 2000.0f))
             _config.Amplitude = amplitude;
 
+        bool filled = _config.Filled;
+        if (ImGui.Checkbox("Filled Triangle", ref filled))
+            _config.Filled = filled;
+
+        if (!_config.Filled)
+        {
+            float lineThickness = _config.LineThickness;
+            if (ImGui.SliderFloat("Line Thickness", ref lineThickness, 1.0f, 10.0f))
+                _config.LineThickness = lineThickness;
+        }
+
         float sensitivity = _config.Sensitivity;
         if (ImGui.SliderFloat("Audio Sensitivity", ref sensitivity, 0.1f, 10.0f))
             _config.Sensitivity = sensitivity;
@@ -366,48 +383,16 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
 
         ImGui.Spacing();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Appearance");
-        ImGui.Separator();
-
-        bool filled = _config.Filled;
-        if (ImGui.Checkbox("Filled Triangle", ref filled))
-            _config.Filled = filled;
-
-        if (!_config.Filled)
-        {
-            float lineThickness = _config.LineThickness;
-            if (ImGui.SliderFloat("Line Thickness", ref lineThickness, 1.0f, 10.0f))
-                _config.LineThickness = lineThickness;
-        }
-
-        ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Data Source");
         ImGui.Separator();
 
-        // Frequency data toggle removed - now using waveform data only
+        bool useFFT = _config.UseFFT;
+        if (ImGui.Checkbox("Use FFT Data", ref useFFT))
+            _config.UseFFT = useFFT;
 
         if (ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.\nRaw Audio: Uses audio amplitude for rotation\nFrequency Data: Uses frequency spectrum magnitude for rotation");
-        }
-
-        ImGui.Spacing();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Fade Trail");
-        ImGui.Separator();
-
-        bool enableFadeTrail = _config.EnableFadeTrail;
-        if (ImGui.Checkbox("Enable Fade Trail", ref enableFadeTrail))
-            _config.EnableFadeTrail = enableFadeTrail;
-
-        if (_config.EnableFadeTrail)
-        {
-            float fadeSpeed = _config.FadeSpeed;
-            if (ImGui.SliderFloat("Fade Speed", ref fadeSpeed, 0.8f, 0.99f))
-                _config.FadeSpeed = fadeSpeed;
-
-            int trailLength = _config.TrailLength;
-            if (ImGui.SliderInt("Trail Length", ref trailLength, 5, 50))
-                _config.TrailLength = trailLength;
+            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.");
         }
 
         ImGui.Spacing();
@@ -433,6 +418,25 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             var color = new System.Numerics.Vector3(_config.Color.X, _config.Color.Y, _config.Color.Z);
             if (ImGui.ColorEdit3("Triangle Color", ref color))
                 _config.Color = new Vector3(color.X, color.Y, color.Z);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Fade Trail");
+        ImGui.Separator();
+
+        bool enableFadeTrail = _config.EnableFadeTrail;
+        if (ImGui.Checkbox("Enable Fade Trail", ref enableFadeTrail))
+            _config.EnableFadeTrail = enableFadeTrail;
+
+        if (_config.EnableFadeTrail)
+        {
+            float fadeSpeed = _config.FadeSpeed;
+            if (ImGui.SliderFloat("Fade Speed", ref fadeSpeed, 0.8f, 0.99f))
+                _config.FadeSpeed = fadeSpeed;
+
+            int trailLength = _config.TrailLength;
+            if (ImGui.SliderInt("Trail Length", ref trailLength, 5, 50))
+                _config.TrailLength = trailLength;
         }
 
         ImGui.Spacing();

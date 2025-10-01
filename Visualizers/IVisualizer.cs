@@ -9,7 +9,7 @@ public interface IVisualizer : IDisposable
     bool IsEnabled { get; set; }
 
     void Initialize();
-    void Update(float[] waveformData, double deltaTime);
+    void Update(float[] waveformData, float[] fftData, double deltaTime);
     void Render(Matrix4 projection, Vector2i windowSize);
     void RenderConfigGui();
 }

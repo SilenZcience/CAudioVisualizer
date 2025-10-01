@@ -29,6 +29,7 @@ public class ReverseWaveformConfig
     public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
     public float FadeSpeed { get; set; } = 0.95f; // How fast waveforms fade (0.9 = slow, 0.99 = fast)
     public int TrailLength { get; set; } = 20; // Maximum number of trail waveforms
+    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
 }
 
 public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
@@ -43,6 +44,7 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
     private int _shaderProgram;
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
+    private float[] _fftData = Array.Empty<float>();
     private Vector2i _currentWindowSize = new Vector2i(800, 600);
     private List<ReverseWaveformFrame> _trailFrames = new();
 
@@ -120,9 +122,10 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
         GL.EnableVertexAttribArray(1);
     }
 
-    public void Update(float[] waveformData, double deltaTime)
+    public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
         _audioData = waveformData;
+        _fftData = fftData;
     }
 
     public void Render(Matrix4 projection, Vector2i windowSize)
@@ -195,7 +198,10 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
     {
         var vertices = new List<float>();
 
-        if (_audioData.Length == 0)
+        // Choose data source based on config
+        float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+
+        if (dataSource.Length == 0)
         {
             return new ReverseWaveformFrame
             {
@@ -250,11 +256,11 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
             int reversedX = waveformWidth - 1 - x;
 
             // Calculate sample index using the reversed X coordinate
-            float exactIndex = reversedX * (_audioData.Length / (float)waveformWidth);
+            float exactIndex = reversedX * (dataSource.Length / (float)waveformWidth);
             int sampleIndex = (int)exactIndex;
 
             // Scale sample and calculate Y position
-            float scaledSample = _audioData[sampleIndex] * _config.Amplitude;
+            float scaledSample = dataSource[sampleIndex] * _config.Amplitude;
             float y = centerY - scaledSample * (windowSize.Y * 0.4f); // Use 40% of height for waveform range
 
             // Calculate X position - direct pixel mapping like GDI+
@@ -340,7 +346,7 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         float amplitude = _config.Amplitude;
-        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.1f, 5.0f))
+        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.01f, 5.0f))
             _config.Amplitude = amplitude;
 
         float lineThickness = _config.LineThickness;
@@ -356,10 +362,6 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
         {
             _config.PositionY = posY;
         }
-
-        ImGui.Spacing();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Waveform Range");
-        ImGui.Separator();
 
         int startX = _config.StartX;
         if (ImGui.DragInt("Start X", ref startX, 1.0f, 0, _currentWindowSize.X))
@@ -377,6 +379,19 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
             // Ensure EndX doesn't go below StartX
             if (_config.EndX <= _config.StartX)
                 _config.StartX = Math.Max(0, _config.EndX - 10);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Data Source");
+        ImGui.Separator();
+
+        bool useFFT = _config.UseFFT;
+        if (ImGui.Checkbox("Use FFT Data", ref useFFT))
+            _config.UseFFT = useFFT;
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.");
         }
 
         ImGui.Spacing();
@@ -423,6 +438,12 @@ public class ReverseWaveformVisualizer : IVisualizer, IConfigurable
             int trailLength = _config.TrailLength;
             if (ImGui.SliderInt("Trail Length", ref trailLength, 5, 50))
                 _config.TrailLength = trailLength;
+        }
+
+        ImGui.Spacing();
+        if (ImGui.Button("Reset to Defaults"))
+        {
+            ResetToDefaults();
         }
     }
 

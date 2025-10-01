@@ -20,7 +20,6 @@ public class VisualizerManager : IDisposable
         RegisterVisualizer(new WaveformVisualizer());
         RegisterVisualizer(new ReverseWaveformVisualizer());
         RegisterVisualizer(new TriangleVisualizer());
-        RegisterVisualizer(new SpectrumBarsVisualizer());
         RegisterVisualizer(new DebugInfoVisualizer());
 
         foreach (var visualizer in _visualizers.Values)
@@ -41,11 +40,11 @@ public class VisualizerManager : IDisposable
         visualizer.IsEnabled = true;
     }
 
-    public void UpdateVisualizers(float[] waveformData, double deltaTime)
+    public void UpdateVisualizers(float[] waveformData, float[] fftData, double deltaTime)
     {
         foreach (var visualizer in _visualizers.Values.Where(v => v.IsEnabled))
         {
-            visualizer.Update(waveformData, deltaTime);
+            visualizer.Update(waveformData, fftData, deltaTime);
         }
     }
 

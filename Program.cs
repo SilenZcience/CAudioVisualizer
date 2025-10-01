@@ -4,6 +4,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using NAudio.Wave;
+using MathNet.Numerics;
+using MathNet.Numerics.IntegralTransforms;
 
 using CAudioVisualizer.Core;
 using CAudioVisualizer.GUI;
@@ -19,6 +21,8 @@ public class AudioVisualizerWindow : GameWindow
     private const int BUFFER_SIZE = 2048;
 
     private float[] _waveformData = new float[BUFFER_SIZE];
+    private Complex32[] _fftBuffer = new Complex32[BUFFER_SIZE];
+    private float[] _fftData = new float[BUFFER_SIZE / 2]; // Only need first half of FFT
 
     private VisualizerManager _visualizerManager = null!;
 
@@ -126,6 +130,28 @@ public class AudioVisualizerWindow : GameWindow
             if (_audioBuffer.Count < BUFFER_SIZE) return;
             Array.Copy(_audioBuffer.TakeLast(BUFFER_SIZE).ToArray(), _waveformData, BUFFER_SIZE);
         }
+
+        // Calculate FFT from waveform data
+        ProcessFFT();
+    }
+
+    private void ProcessFFT()
+    {
+        // Prepare FFT buffer
+        for (int i = 0; i < BUFFER_SIZE; i++)
+        {
+            _fftBuffer[i] = new Complex32(_waveformData[i], 0);
+        }
+
+        // Perform FFT
+        Fourier.Forward(_fftBuffer, FourierOptions.Matlab);
+
+        // Extract magnitudes for first half (avoid mirroring)
+        int spectrumSize = BUFFER_SIZE / 2;
+        for (int i = 0; i < spectrumSize; i++)
+        {
+            _fftData[i] = _fftBuffer[i].Magnitude;
+        }
     }
 
     protected override void OnRenderFrame(FrameEventArgs e)
@@ -141,7 +167,7 @@ public class AudioVisualizerWindow : GameWindow
         var projection = Matrix4.CreateOrthographicOffCenter(0, ClientSize.X, ClientSize.Y, 0, -1, 1);
 
         // Update and render all visualizers
-        _visualizerManager.UpdateVisualizers(_waveformData, e.Time);
+        _visualizerManager.UpdateVisualizers(_waveformData, _fftData, e.Time);
         _visualizerManager.RenderVisualizers(projection, ClientSize);
 
         if (_showConfigWindow)

@@ -29,6 +29,7 @@ public class WaveformConfig
     public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
     public float FadeSpeed { get; set; } = 0.95f; // How fast waveforms fade (0.9 = slow, 0.99 = fast)
     public int TrailLength { get; set; } = 20; // Maximum number of trail waveforms
+    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
 }
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
@@ -43,6 +44,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private int _shaderProgram;
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
+    private float[] _fftData = Array.Empty<float>();
     private Vector2i _currentWindowSize = new Vector2i(800, 600);
     private List<WaveformFrame> _trailFrames = new();
 
@@ -120,9 +122,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.EnableVertexAttribArray(1);
     }
 
-    public void Update(float[] audioData, double deltaTime)
+    public void Update(float[] audioData, float[] fftData, double deltaTime)
     {
         _audioData = audioData;
+        _fftData = fftData;
     }
 
     public void Render(Matrix4 projection, Vector2i windowSize)
@@ -206,7 +209,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         var vertices = new List<float>();
 
-        if (_audioData.Length == 0)
+        // Select data source based on configuration
+        float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+
+        if (dataSource.Length == 0)
         {
             return new WaveformFrame
             {
@@ -258,11 +264,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         for (int x = 0; x < waveformWidth; x++)
         {
             // Calculate sample index with interpolation for smoother curves
-            float exactIndex = x * (_audioData.Length / (float)waveformWidth);
+            float exactIndex = x * (dataSource.Length / (float)waveformWidth);
             int sampleIndex = (int)exactIndex;
 
             // Scale sample and calculate Y position
-            float scaledSample = _audioData[sampleIndex] * _config.Amplitude;
+            float scaledSample = dataSource[sampleIndex] * _config.Amplitude;
             float y = centerY - scaledSample * (windowSize.Y * 0.4f); // Use 40% of height for waveform range
 
             // Calculate X position - direct pixel mapping like GDI+
@@ -331,7 +337,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         float amplitude = _config.Amplitude;
-        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.1f, 5.0f))
+        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.01f, 5.0f))
             _config.Amplitude = amplitude;
 
         float lineThickness = _config.LineThickness;
@@ -347,10 +353,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             _config.PositionY = posY;
         }
-
-        ImGui.Spacing();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Waveform Range");
-        ImGui.Separator();
 
         int startX = _config.StartX;
         if (ImGui.DragInt("Start X", ref startX, 1.0f, 0, _currentWindowSize.X))
@@ -368,6 +370,19 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Ensure EndX doesn't go below StartX
             if (_config.EndX <= _config.StartX)
                 _config.StartX = Math.Max(0, _config.EndX - 10);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Data Source");
+        ImGui.Separator();
+
+        bool useFFT = _config.UseFFT;
+        if (ImGui.Checkbox("Use FFT Data", ref useFFT))
+            _config.UseFFT = useFFT;
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.");
         }
 
         ImGui.Spacing();
@@ -414,6 +429,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             int trailLength = _config.TrailLength;
             if (ImGui.SliderInt("Trail Length", ref trailLength, 5, 50))
                 _config.TrailLength = trailLength;
+        }
+
+        ImGui.Spacing();
+        if (ImGui.Button("Reset to Defaults"))
+        {
+            ResetToDefaults();
         }
     }
 

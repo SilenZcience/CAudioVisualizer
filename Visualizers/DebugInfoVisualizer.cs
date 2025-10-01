@@ -60,7 +60,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         _fpsTimer.Restart();
     }
 
-    public void Update(float[] waveformData, double deltaTime)
+    public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
         // Update FPS calculation
         _frameCount++;
