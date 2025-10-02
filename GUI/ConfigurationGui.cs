@@ -56,7 +56,7 @@ public class ConfigurationGui
                 {
                     // Save visualizer configurations before saving main config
                     _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
-                    _appConfig.SaveConfiguration("config.json");
+                    _appConfig.SaveConfiguration(AppConfig.GetConfigFilePath());
                 }
 
                 if (ImGui.MenuItem("Load Configuration"))
