@@ -57,13 +57,29 @@ public class ConfigurationGui
                     _appConfig.LoadConfiguration("config.json");
                     // Load visualizer configurations after loading main config
                     _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
+
+                    _onConfigChanged?.Invoke();
+                    CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+                    _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
                 }
 
                 if (ImGui.MenuItem("Reset to Defaults"))
                 {
                     _appConfig.ResetToDefaults();
-                    // Apply reset to visualizers as well
-                    _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
+
+                    _onConfigChanged?.Invoke();
+                    CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+                    // _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
+
+                    foreach (var visualizer in _visualizerManager.Visualizers.Values)
+                    {
+                        if (visualizer is IConfigurable configurable)
+                        {
+                            configurable.ResetToDefaults();
+                        }
+                    }
+
+                    _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
                 }
 
                 ImGui.EndMenu();
@@ -88,8 +104,6 @@ public class ConfigurationGui
                 // Reset FPS statistics when target changes
                 CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
             }
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied in real-time)");
 
             bool enableVSync = _appConfig.EnableVSync;
             if (ImGui.Checkbox("Enable VSync", ref enableVSync))
@@ -99,8 +113,6 @@ public class ConfigurationGui
                 // Reset FPS statistics when target changes
                 CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
             }
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied in real-time)");
 
             ImGui.Separator();
             ImGui.Text("Display Settings");
@@ -121,8 +133,25 @@ public class ConfigurationGui
                 _appConfig.SelectedMonitorIndex = currentMonitor;
                 _window?.SwitchToMonitor(currentMonitor);
             }
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "(Applied immediately)");
+
+            bool spanAllMonitors = _appConfig.SpanAllMonitors;
+            if (ImGui.Checkbox("Span across all monitors", ref spanAllMonitors))
+            {
+                _appConfig.SpanAllMonitors = spanAllMonitors;
+                _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
+            }
+
+            // Show helpful text based on monitor count
+            if (monitors.Count <= 1)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f), "Multi-monitor spanning requires 2+ monitors");
+            }
+            else if (_appConfig.SpanAllMonitors)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new System.Numerics.Vector4(0.0f, 1.0f, 0.0f, 1.0f), $"Spanning across {monitors.Count} monitors");
+            }
 
             ImGui.EndTabItem();
         }
