@@ -23,5 +23,5 @@ obj/
 .history
 .ionide
 
-releases/installer-ready
+releases/*
 imgui.ini

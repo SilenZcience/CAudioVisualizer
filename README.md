@@ -92,6 +92,14 @@ Feel free to explore the code, contribute, or request new features!
 [![MadeWith-C#]](https://dotnet.microsoft.com/en-us/download)
 [![.Net-Version]](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
 
+**External Libraries:**
+- **[NAudio](https://github.com/naudio/NAudio)** - Audio capture & processing
+- **[OpenTK](https://github.com/opentk/opentk)** - OpenGL bindings & windowing
+- **[ImGui.NET](https://github.com/ImGuiNET/ImGui.NET)** - Immediate mode GUI framework
+- **[MathNet.Numerics](https://github.com/mathnet/mathnet-numerics)** - Mathematical computations & FFT
+
+
+
 <p align="right">(<a href="#top">↑back to top↑</a>)</p>
 <div id="getting-started"></div>
 
