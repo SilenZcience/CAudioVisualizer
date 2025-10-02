@@ -53,6 +53,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private List<WaveformFrame> _trailFrames = new();
     private VisualizerManager? _visualizerManager;
 
+    private int _projectionLocation = -1;
+    private readonly List<float> _vertexBuffer = new();
+    private readonly List<float> _tempVertexBuffer = new();
+
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
     public void SetVisualizerManager(VisualizerManager manager)
@@ -111,6 +115,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.AttachShader(_shaderProgram, fragmentShader);
         GL.LinkProgram(_shaderProgram);
 
+        _projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
+
         // Clean up shader objects
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
@@ -152,9 +158,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         GL.UseProgram(_shaderProgram);
 
-        // Set uniforms
-        int projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
-        GL.UniformMatrix4(projectionLocation, false, ref projection);
+        GL.UniformMatrix4(_projectionLocation, false, ref projection);
 
         if (_config.EnableFadeTrail)
         {
@@ -216,7 +220,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
     private WaveformFrame GenerateCurrentWaveform(Vector2i windowSize)
     {
-        var vertices = new List<float>();
+        _vertexBuffer.Clear();
 
         // Select data source based on configuration
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
@@ -225,7 +229,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = vertices,
+                Vertices = _vertexBuffer,
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
@@ -244,7 +248,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = vertices,
+                Vertices = _vertexBuffer,
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
@@ -258,7 +262,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = vertices,
+                Vertices = _vertexBuffer,
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
@@ -287,17 +291,17 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             float pixelX = startPixel + x;
 
             // Add vertex (position + color)
-            vertices.Add(pixelX);           // X
-            vertices.Add(y);                // Y
-            vertices.Add(0.0f);             // Z
-            vertices.Add(color.X);          // R
-            vertices.Add(color.Y);          // G
-            vertices.Add(color.Z);          // B
+            _vertexBuffer.Add(pixelX);           // X
+            _vertexBuffer.Add(y);                // Y
+            _vertexBuffer.Add(0.0f);             // Z
+            _vertexBuffer.Add(color.X);          // R
+            _vertexBuffer.Add(color.Y);          // G
+            _vertexBuffer.Add(color.Z);          // B
         }
 
         return new WaveformFrame
         {
-            Vertices = vertices,
+            Vertices = _vertexBuffer,
             Color = color,
             Brightness = 1.0f,
             LineWidth = _config.LineThickness
@@ -306,17 +310,21 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
     private List<float> ApplyBrightnessToVertices(List<float> vertices, float brightness)
     {
-        var fadedVertices = new List<float>(vertices);
+        _tempVertexBuffer.Clear();
+        if (_tempVertexBuffer.Capacity < vertices.Count)
+            _tempVertexBuffer.Capacity = vertices.Count;
 
-        // Apply brightness to color components (every 4th, 5th, and 6th float are RGB)
-        for (int i = 3; i < fadedVertices.Count; i += 6)
+        _tempVertexBuffer.AddRange(vertices);
+
+        // Apply brightness to color components only (every 4th, 5th, and 6th float are RGB)
+        for (int i = 3; i < _tempVertexBuffer.Count; i += 6)
         {
-            fadedVertices[i] *= brightness;     // R
-            fadedVertices[i + 1] *= brightness; // G
-            fadedVertices[i + 2] *= brightness; // B
+            _tempVertexBuffer[i] *= brightness;     // R
+            _tempVertexBuffer[i + 1] *= brightness; // G
+            _tempVertexBuffer[i + 2] *= brightness; // B
         }
 
-        return fadedVertices;
+        return _tempVertexBuffer;
     }
 
     private void RenderWaveform(List<float> vertices, float lineWidth)
@@ -326,7 +334,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Upload vertex data
         GL.BindVertexArray(_vertexArrayObject);
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+
+        var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
+        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
         // Set line width
         GL.LineWidth(lineWidth);

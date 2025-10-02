@@ -61,6 +61,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private List<CircleFrame> _trailFrames = new();
     private VisualizerManager? _visualizerManager;
 
+    private int _projectionLocation = -1;
+    private int _pointSizeLocation = -1;
+    private readonly List<float> _vertexBuffer = new();
+    private readonly List<float> _tempVertexBuffer = new();
+
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
     public void SetVisualizerManager(VisualizerManager manager)
@@ -128,6 +133,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         GL.AttachShader(_shaderProgram, fragmentShader);
         GL.LinkProgram(_shaderProgram);
 
+        _projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
+        _pointSizeLocation = GL.GetUniformLocation(_shaderProgram, "pointSize");
+
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
     }
@@ -166,12 +174,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             _config.PositionY = windowSize.Y / 2;
 
         GL.UseProgram(_shaderProgram);
-
-        // Set uniforms
-        int projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
-        GL.UniformMatrix4(projectionLocation, false, ref projection);
-
-        int pointSizeLocation = GL.GetUniformLocation(_shaderProgram, "pointSize");
+        GL.UniformMatrix4(_projectionLocation, false, ref projection);
 
         if (_config.EnableFadeTrail)
         {
@@ -179,12 +182,12 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             UpdateTrailFrames(windowSize);
 
             // Render all trail frames
-            RenderTrailFrames(pointSizeLocation);
+            RenderTrailFrames();
         }
         else
         {
             // Normal rendering without trail
-            GL.Uniform1(pointSizeLocation, _config.DotSize);
+            GL.Uniform1(_pointSizeLocation, _config.DotSize);
 
             // Generate circle dots
             var vertices = GenerateCircleDots(windowSize);
@@ -193,7 +196,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             // Upload vertex data
             GL.BindVertexArray(_vertexArrayObject);
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
+            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
             // Enable point sprites
             GL.Enable(EnableCap.ProgramPointSize);
@@ -207,20 +212,22 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateCircleDots(Vector2i windowSize)
     {
-        // Generate circle frame and convert to vertex list
+        // Generate circle frame and convert to vertex list using reusable buffer
         var circleFrame = GenerateCurrentCircle(windowSize);
-        var vertices = new List<float>();
+        _vertexBuffer.Clear();
 
         foreach (var dotPos in circleFrame.DotPositions)
         {
             // Add vertex: position (x, y, z) + color (r, g, b)
-            vertices.AddRange(new[] {
-                dotPos.X, dotPos.Y, dotPos.Z,
-                circleFrame.Color.X, circleFrame.Color.Y, circleFrame.Color.Z
-            });
+            _vertexBuffer.Add(dotPos.X);
+            _vertexBuffer.Add(dotPos.Y);
+            _vertexBuffer.Add(dotPos.Z);
+            _vertexBuffer.Add(circleFrame.Color.X);
+            _vertexBuffer.Add(circleFrame.Color.Y);
+            _vertexBuffer.Add(circleFrame.Color.Z);
         }
 
-        return vertices;
+        return _vertexBuffer;
     }
 
     private void UpdateTrailFrames(Vector2i windowSize)
@@ -330,7 +337,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         };
     }
 
-    private void RenderTrailFrames(int pointSizeLocation)
+    private void RenderTrailFrames()
     {
         GL.BindVertexArray(_vertexArrayObject);
 
@@ -339,32 +346,34 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         {
             var frame = _trailFrames[i];
 
-            // Create vertex data with faded color
-            var vertices = new List<float>();
+            // Create vertex data with faded color using reusable buffer
+            _tempVertexBuffer.Clear();
             Vector3 fadedColor = frame.Color * frame.Brightness;
 
             foreach (var dotPos in frame.DotPositions)
             {
-                vertices.AddRange(new[] {
-                    dotPos.X, dotPos.Y, dotPos.Z,
-                    fadedColor.X, fadedColor.Y, fadedColor.Z
-                });
+                _tempVertexBuffer.Add(dotPos.X);
+                _tempVertexBuffer.Add(dotPos.Y);
+                _tempVertexBuffer.Add(dotPos.Z);
+                _tempVertexBuffer.Add(fadedColor.X);
+                _tempVertexBuffer.Add(fadedColor.Y);
+                _tempVertexBuffer.Add(fadedColor.Z);
             }
 
-            if (vertices.Count == 0) continue;
+            if (_tempVertexBuffer.Count == 0) continue;
 
-            // Set point size for this frame
-            GL.Uniform1(pointSizeLocation, frame.DotSize);
+            GL.Uniform1(_pointSizeLocation, frame.DotSize);
 
             // Upload and draw
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_tempVertexBuffer);
+            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
             // Enable point sprites
             GL.Enable(EnableCap.ProgramPointSize);
 
             // Draw points
-            GL.DrawArrays(PrimitiveType.Points, 0, vertices.Count / 6);
+            GL.DrawArrays(PrimitiveType.Points, 0, _tempVertexBuffer.Count / 6);
 
             GL.Disable(EnableCap.ProgramPointSize);
         }

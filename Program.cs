@@ -177,24 +177,21 @@ public class AudioVisualizerWindow : GameWindow
         lock (_bufferLock)
         {
             if (_audioBuffer.Count < BUFFER_SIZE) return;
-            Array.Copy(_audioBuffer.TakeLast(BUFFER_SIZE).ToArray(), _waveformData, BUFFER_SIZE);
+
+            int startIndex = _audioBuffer.Count - BUFFER_SIZE;
+            for (int i = 0; i < BUFFER_SIZE; i++)
+            {
+                _waveformData[i] = _audioBuffer[startIndex + i];
+            }
         }
 
         // Calculate FFT from waveform data
-        ProcessFFT();
-    }
-
-    private void ProcessFFT()
-    {
-        // Prepare FFT buffer
         for (int i = 0; i < BUFFER_SIZE; i++)
         {
             _fftBuffer[i] = new Complex32(_waveformData[i], 0);
         }
-
         // Perform FFT
         Fourier.Forward(_fftBuffer, FourierOptions.Matlab);
-
         // Extract magnitudes for first half (avoid mirroring)
         int spectrumSize = BUFFER_SIZE / 2;
         for (int i = 0; i < spectrumSize; i++)

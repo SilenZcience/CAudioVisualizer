@@ -57,6 +57,10 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     private List<TriangleFrame> _trailFrames = new();
     private VisualizerManager? _visualizerManager;
 
+    private int _projectionLocation = -1;
+    private readonly List<float> _vertexBuffer = new();
+    private readonly List<float> _tempVertexBuffer = new();
+
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
     public void SetVisualizerManager(VisualizerManager manager)
@@ -112,6 +116,8 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         GL.AttachShader(_shaderProgram, fragmentShader);
         GL.LinkProgram(_shaderProgram);
 
+        _projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
+
         GL.DeleteShader(vertexShader);
         GL.DeleteShader(fragmentShader);
     }
@@ -156,9 +162,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         GL.UseProgram(_shaderProgram);
 
-        // Set uniforms
-        int projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
-        GL.UniformMatrix4(projectionLocation, false, ref projection);
+        GL.UniformMatrix4(_projectionLocation, false, ref projection);
 
         if (_config.EnableFadeTrail)
         {
@@ -175,7 +179,9 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             // Upload vertex data
             GL.BindVertexArray(_vertexArrayObject);
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
+            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
             // Draw triangle
             if (_config.Filled)
@@ -225,21 +231,24 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             var frame = _trailFrames[i];
 
-            // Create vertex data with faded color
-            var vertices = new List<float>();
+            // Create vertex data with faded color using reusable buffer
+            _tempVertexBuffer.Clear();
             Vector3 fadedColor = frame.Color * frame.Brightness;
 
             for (int j = 0; j < 3; j++)
             {
-                vertices.AddRange(new[] {
-                    frame.Vertices[j].X, frame.Vertices[j].Y, frame.Vertices[j].Z,
-                    fadedColor.X, fadedColor.Y, fadedColor.Z
-                });
+                _tempVertexBuffer.Add(frame.Vertices[j].X);
+                _tempVertexBuffer.Add(frame.Vertices[j].Y);
+                _tempVertexBuffer.Add(frame.Vertices[j].Z);
+                _tempVertexBuffer.Add(fadedColor.X);
+                _tempVertexBuffer.Add(fadedColor.Y);
+                _tempVertexBuffer.Add(fadedColor.Z);
             }
 
             // Upload and draw
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertices.Count * sizeof(float), vertices.ToArray(), BufferUsageHint.DynamicDraw);
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_tempVertexBuffer);
+            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
             if (frame.Filled)
             {
@@ -255,20 +264,22 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateTriangleVertices(Vector2i windowSize)
     {
-        // Generate triangle frame and convert to vertex list
+        // Generate triangle frame and convert to vertex list using reusable buffer
         var triangleFrame = GenerateCurrentTriangle(windowSize);
-        var vertices = new List<float>();
+        _vertexBuffer.Clear();
 
         for (int i = 0; i < 3; i++)
         {
             // Add vertex: position (x, y, z) + color (r, g, b)
-            vertices.AddRange(new[] {
-                triangleFrame.Vertices[i].X, triangleFrame.Vertices[i].Y, triangleFrame.Vertices[i].Z,
-                triangleFrame.Color.X, triangleFrame.Color.Y, triangleFrame.Color.Z
-            });
+            _vertexBuffer.Add(triangleFrame.Vertices[i].X);
+            _vertexBuffer.Add(triangleFrame.Vertices[i].Y);
+            _vertexBuffer.Add(triangleFrame.Vertices[i].Z);
+            _vertexBuffer.Add(triangleFrame.Color.X);
+            _vertexBuffer.Add(triangleFrame.Color.Y);
+            _vertexBuffer.Add(triangleFrame.Color.Z);
         }
 
-        return vertices;
+        return _vertexBuffer;
     }
 
     private TriangleFrame GenerateCurrentTriangle(Vector2i windowSize)
