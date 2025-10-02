@@ -340,6 +340,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private void RenderTrailFrames()
     {
         GL.BindVertexArray(_vertexArrayObject);
+        GL.Enable(EnableCap.ProgramPointSize);
 
         // Draw circles in reverse order (oldest first, newest last)
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
@@ -369,14 +370,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_tempVertexBuffer);
             GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
-            // Enable point sprites
-            GL.Enable(EnableCap.ProgramPointSize);
-
             // Draw points
             GL.DrawArrays(PrimitiveType.Points, 0, _tempVertexBuffer.Count / 6);
-
-            GL.Disable(EnableCap.ProgramPointSize);
         }
+
+        GL.Disable(EnableCap.ProgramPointSize);
     }
 
     public void RenderConfigGui()
