@@ -61,7 +61,7 @@ public class ConfigurationGui
 
                 if (ImGui.MenuItem("Load Configuration"))
                 {
-                    _appConfig.LoadConfiguration("config.json");
+                    _appConfig.LoadConfiguration(AppConfig.GetConfigFilePath());
                     // Load visualizer configurations after loading main config
                     _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
 
