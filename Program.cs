@@ -42,7 +42,6 @@ public class AudioVisualizerWindow : GameWindow
 
         if (_appConfig?.SpanAllMonitors == true && monitors.Count > 1)
         {
-            // Calculate full desktop bounds including taskbar areas
             int minX = monitors.Min(m => m.ClientArea.Min.X);
             int minY = monitors.Min(m => m.ClientArea.Min.Y);
             int maxX = monitors.Max(m => m.ClientArea.Max.X);
@@ -266,9 +265,8 @@ static class Program
 
         if (tempConfig.SpanAllMonitors && monitors.Count > 1)
         {
-            // Calculate full desktop bounds including taskbar areas
-            int minX = 0; // Start from screen origin
-            int minY = 0;
+            int minX = monitors.Min(m => m.ClientArea.Min.X);
+            int minY = monitors.Min(m => m.ClientArea.Min.Y);
             int maxX = monitors.Max(m => m.ClientArea.Max.X);
             int maxY = monitors.Max(m => m.ClientArea.Max.Y);
 
