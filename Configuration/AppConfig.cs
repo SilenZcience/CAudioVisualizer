@@ -73,8 +73,8 @@ public class AppConfig
     {
         TargetFPS = 60;
         EnableVSync = true;
-        SelectedMonitorIndex = 0;
-        SpanAllMonitors = false;
+        // SelectedMonitorIndex = 0;
+        // SpanAllMonitors = false;
         VisualizerConfigs.Clear();
         EnabledVisualizers.Clear();
     }
