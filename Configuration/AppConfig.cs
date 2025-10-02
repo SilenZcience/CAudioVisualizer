@@ -12,6 +12,31 @@ public class AppConfig
     public Dictionary<string, string> VisualizerConfigs { get; set; } = new();
     public List<string> EnabledVisualizers { get; set; } = new();
 
+    // Get the user-specific configuration directory
+    private static string GetUserConfigDirectory()
+    {
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var configDir = Path.Combine(appDataPath, "CAudioVisualizer");
+
+        // Create directory if it doesn't exist
+        if (!Directory.Exists(configDir))
+        {
+            Directory.CreateDirectory(configDir);
+        }
+
+        return configDir;
+    }
+
+    public static string GetConfigFilePath()
+    {
+        return Path.Combine(GetUserConfigDirectory(), "config.json");
+    }
+
+    public static string GetImGuiConfigPath()
+    {
+        return Path.Combine(GetUserConfigDirectory(), "imgui.ini");
+    }
+
     public void SaveConfiguration(string filePath)
     {
         var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });

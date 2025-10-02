@@ -35,6 +35,13 @@ public class ImGuiController : IDisposable
         io.Fonts.AddFontDefault();
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
 
+        // Load ImGui settings from user directory if it exists
+        var imguiConfigPath = CAudioVisualizer.Configuration.AppConfig.GetImGuiConfigPath();
+        if (File.Exists(imguiConfigPath))
+        {
+            ImGui.LoadIniSettingsFromDisk(imguiConfigPath);
+        }
+
         CreateDeviceResources();
         SetPerFrameImGuiData(1f / 60f);
         ImGui.NewFrame();

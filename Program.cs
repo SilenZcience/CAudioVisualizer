@@ -62,7 +62,7 @@ public class AudioVisualizerWindow : GameWindow
         _imGuiController = new ImGuiController(ClientSize.X, ClientSize.Y);
 
         _appConfig = new AppConfig();
-        _appConfig.LoadConfiguration("config.json");
+        _appConfig.LoadConfiguration(AppConfig.GetConfigFilePath());
 
         _visualizerManager = new VisualizerManager();
 
@@ -219,12 +219,12 @@ public class AudioVisualizerWindow : GameWindow
         base.OnUnload();
 
         // Force ImGui to save its settings before shutdown
-        ImGuiNET.ImGui.SaveIniSettingsToDisk("imgui.ini");
+        ImGuiNET.ImGui.SaveIniSettingsToDisk(CAudioVisualizer.Configuration.AppConfig.GetImGuiConfigPath());
 
         if (_appConfig != null && _visualizerManager != null)
         {
             _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
-            _appConfig.SaveConfiguration("config.json");
+            _appConfig.SaveConfiguration(CAudioVisualizer.Configuration.AppConfig.GetConfigFilePath());
         }
 
         _capture?.StopRecording();
@@ -241,7 +241,7 @@ static class Program
     {
         // Load configuration early to get monitor selection
         var tempConfig = new CAudioVisualizer.Configuration.AppConfig();
-        tempConfig.LoadConfiguration("config.json");
+        tempConfig.LoadConfiguration(CAudioVisualizer.Configuration.AppConfig.GetConfigFilePath());
 
         var gameWindowSettings = GameWindowSettings.Default;
 
