@@ -64,7 +64,7 @@ DefaultDirName={autopf}\CAudioVisualizer
 DefaultGroupName=CAudioVisualizer
 AllowNoIcons=yes
 OutputDir=..
-OutputBaseFilename=CAudioVisualizer-v$Version-Setup
+OutputBaseFilename=CAudioVisualizer-$Version-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -198,7 +198,7 @@ $compileExitCode = $LASTEXITCODE
 Set-Location $currentDir
 
 if ($compileExitCode -eq 0) {
-    $setupFile = "$outputDir\CAudioVisualizer-v$Version-Setup.exe"
+    $setupFile = "$outputDir\CAudioVisualizer-$Version-Setup.exe"
     if (Test-Path $setupFile) {
         $setupSize = [math]::Round((Get-Item $setupFile).Length / 1MB, 2)
         Write-Host "`n✅ Inno Setup installer created successfully!" -ForegroundColor Green

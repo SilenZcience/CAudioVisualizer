@@ -20,13 +20,13 @@ if (!(Test-Path $outputDir)) {
 }
 
 Write-Host "Building self-contained x64 executable..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-v$Version" -o "$outputDir\win-x64"
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-winx64" -o "$outputDir\win-x64"
 
 Write-Host "Building self-contained x86 executable..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-v$Version" -o "$outputDir\win-x86"
+dotnet publish -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-winx86" -o "$outputDir\win-x86"
 
 Write-Host "Building framework-dependent version..." -ForegroundColor Yellow
-dotnet publish -c Release --self-contained false -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-v$Version" -o "$outputDir\framework-dependent"
+dotnet publish -c Release --self-contained false -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-framework-dependent" -o "$outputDir\framework-dependent"
 
 Write-Host "Building installer-ready version with DLLs..." -ForegroundColor Yellow
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "$outputDir\installer-ready"
@@ -40,16 +40,16 @@ Write-Host "  - $outputDir\installer-ready (installer-ready with DLLs)" -Foregro
 
 # Show file sizes
 Write-Host "`nFile sizes:" -ForegroundColor Cyan
-if (Test-Path "$outputDir\win-x64\CAudioVisualizer-v$Version.exe") {
-    $size64 = [math]::Round((Get-Item "$outputDir\win-x64\CAudioVisualizer-v$Version.exe").Length / 1MB, 2)
+if (Test-Path "$outputDir\win-x64\CAudioVisualizer-$Version-winx64.exe") {
+    $size64 = [math]::Round((Get-Item "$outputDir\win-x64\CAudioVisualizer-$Version-winx64.exe").Length / 1MB, 2)
     Write-Host "  - win-x64: $size64 MB" -ForegroundColor White
 }
-if (Test-Path "$outputDir\win-x86\CAudioVisualizer-v$Version.exe") {
-    $size86 = [math]::Round((Get-Item "$outputDir\win-x86\CAudioVisualizer-v$Version.exe").Length / 1MB, 2)
+if (Test-Path "$outputDir\win-x86\CAudioVisualizer-$Version-winx86.exe") {
+    $size86 = [math]::Round((Get-Item "$outputDir\win-x86\CAudioVisualizer-$Version-winx86.exe").Length / 1MB, 2)
     Write-Host "  - win-x86: $size86 MB" -ForegroundColor White
 }
-if (Test-Path "$outputDir\framework-dependent\CAudioVisualizer-v$Version.exe") {
-    $sizeFD = [math]::Round((Get-Item "$outputDir\framework-dependent\CAudioVisualizer-v$Version.exe").Length / 1MB, 2)
+if (Test-Path "$outputDir\framework-dependent\CAudioVisualizer-$Version-framework-dependent.exe") {
+    $sizeFD = [math]::Round((Get-Item "$outputDir\framework-dependent\CAudioVisualizer-$Version-framework-dependent.exe").Length / 1MB, 2)
     Write-Host "  - framework-dependent: $sizeFD MB" -ForegroundColor White
 }
 if (Test-Path "$outputDir\installer-ready\CAudioVisualizer.exe") {
