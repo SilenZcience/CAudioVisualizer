@@ -1,19 +1,16 @@
 {
-  "TargetFPS": 165,
+  "TargetFPS": 60,
   "EnableVSync": false,
   "SelectedMonitorIndex": 0,
+  "SpanAllMonitors": false,
+  "SelectedAudioDeviceId": "",
+  "SelectedAudioDeviceName": "Default Device",
   "VisualizerConfigs": {
-    "Circle": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022CircleSize\u0022: 41.983,\r\n  \u0022DotsMin\u0022: 904,\r\n  \u0022DotsMax\u0022: 1000,\r\n  \u0022DotSize\u0022: 2.036,\r\n  \u0022PositionX\u0022: 1720,\r\n  \u0022PositionY\u0022: 720,\r\n  \u0022Sensitivity\u0022: 1.845,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.861,\r\n  \u0022TrailLength\u0022: 50,\r\n  \u0022UseFFT\u0022: false\r\n}",
-    "Waveform": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 0\r\n  },\r\n  \u0022Amplitude\u0022: 1,\r\n  \u0022PositionY\u0022: 1440,\r\n  \u0022LineThickness\u0022: 2,\r\n  \u0022StartX\u0022: 0,\r\n  \u0022EndX\u0022: 1720,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022PositionX\u0022: 0.5,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.8,\r\n  \u0022TrailLength\u0022: 50,\r\n  \u0022UseFFT\u0022: true\r\n}",
-    "Reverse Waveform": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 1,\r\n    \u0022Y\u0022: 0,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022Amplitude\u0022: 1.004,\r\n  \u0022PositionY\u0022: 1440,\r\n  \u0022LineThickness\u0022: 2,\r\n  \u0022StartX\u0022: 1720,\r\n  \u0022EndX\u0022: 3440,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022PositionX\u0022: 0.5,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.8,\r\n  \u0022TrailLength\u0022: 50,\r\n  \u0022UseFFT\u0022: true\r\n}",
-    "Triangle": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022BaseSize\u0022: 47.419,\r\n  \u0022Amplitude\u0022: 716.508,\r\n  \u0022RotationSpeed\u0022: 1,\r\n  \u0022CurrentAngle\u0022: 0,\r\n  \u0022Filled\u0022: false,\r\n  \u0022LineThickness\u0022: 1,\r\n  \u0022Sensitivity\u0022: 3.858,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.95,\r\n  \u0022TrailLength\u0022: 50,\r\n  \u0022PositionX\u0022: 1720,\r\n  \u0022PositionY\u0022: 720,\r\n  \u0022UseFFT\u0022: false\r\n}",
-    "Debug": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 1,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022Position\u0022: {\r\n    \u0022X\u0022: 10,\r\n    \u0022Y\u0022: 10\r\n  },\r\n  \u0022FontSize\u0022: 17.442,\r\n  \u0022ShowFpsStats\u0022: true,\r\n  \u0022ShowAudioInfo\u0022: false,\r\n  \u0022ShowSystemInfo\u0022: false\r\n}"
+    "Waveform_1": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 0,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 0\r\n  },\r\n  \u0022Amplitude\u0022: 1,\r\n  \u0022PositionY\u0022: 540,\r\n  \u0022LineThickness\u0022: 1,\r\n  \u0022StartX\u0022: 0,\r\n  \u0022EndX\u0022: 1920,\r\n  \u0022UseTimeColor\u0022: false,\r\n  \u0022UseRealTimeColor\u0022: true,\r\n  \u0022PositionX\u0022: 0.5,\r\n  \u0022EnableFadeTrail\u0022: true,\r\n  \u0022FadeSpeed\u0022: 0.9,\r\n  \u0022TrailLength\u0022: 50,\r\n  \u0022UseFFT\u0022: false,\r\n  \u0022Reverse\u0022: false\r\n}",
+    "Debug_1": "{\r\n  \u0022Enabled\u0022: true,\r\n  \u0022Color\u0022: {\r\n    \u0022X\u0022: 1,\r\n    \u0022Y\u0022: 1,\r\n    \u0022Z\u0022: 1\r\n  },\r\n  \u0022Position\u0022: {\r\n    \u0022X\u0022: 10,\r\n    \u0022Y\u0022: 10\r\n  },\r\n  \u0022FontSize\u0022: 20.0,\r\n  \u0022ShowFpsStats\u0022: true,\r\n  \u0022ShowSystemInfo\u0022: false,\r\n  \u0022ShowHotkeyTooltip\u0022: true\r\n}"
   },
   "EnabledVisualizers": [
-    "Circle",
-    "Waveform",
-    "Reverse Waveform",
-    "Triangle",
-    "Debug"
+    "Waveform_1",
+    "Debug_1"
   ]
 }
