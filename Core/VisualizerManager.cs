@@ -6,6 +6,7 @@ namespace CAudioVisualizer.Core;
 public class VisualizerManager : IDisposable
 {
     private readonly Dictionary<string, IVisualizer> _visualizers = new();
+    private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
 
     public IReadOnlyDictionary<string, IVisualizer> Visualizers => _visualizers;
 
@@ -38,6 +39,7 @@ public class VisualizerManager : IDisposable
 
         _visualizers[visualizer.Name] = visualizer;
         visualizer.IsEnabled = true;
+        visualizer.SetVisualizerManager(this);
     }
 
     public void UpdateVisualizers(float[] waveformData, float[] fftData, double deltaTime)
@@ -50,10 +52,18 @@ public class VisualizerManager : IDisposable
 
     public void RenderVisualizers(Matrix4 projection, Vector2i windowSize)
     {
+        // Update current window size for all visualizers to reference
+        _currentWindowSize = windowSize;
+
         foreach (var visualizer in _visualizers.Values.Where(v => v.IsEnabled))
         {
             visualizer.Render(projection, windowSize);
         }
+    }
+
+    public Vector2i GetCurrentWindowSize()
+    {
+        return _currentWindowSize;
     }
 
     public void ToggleVisualizer(string name, bool enabled)

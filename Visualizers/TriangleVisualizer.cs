@@ -40,7 +40,11 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 {
     public string Name => "Triangle";
     public string DisplayName => "Triangle";
-    public bool IsEnabled { get; set; } = true;
+    public bool IsEnabled
+    {
+        get => _config.Enabled;
+        set => _config.Enabled = value;
+    }
 
     private TriangleConfig _config = new();
     private int _vertexBufferObject;
@@ -51,7 +55,14 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
     private List<TriangleFrame> _trailFrames = new();
-    private Vector2i _currentWindowSize = new Vector2i(800, 600);
+    private VisualizerManager? _visualizerManager;
+
+    private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
+
+    public void SetVisualizerManager(VisualizerManager manager)
+    {
+        _visualizerManager = manager;
+    }
 
     public void Initialize()
     {
@@ -136,9 +147,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     public void Render(Matrix4 projection, Vector2i windowSize)
     {
         if (!IsEnabled || !_initialized) return;
-
-        // Update current window size for config GUI
-        _currentWindowSize = windowSize;
 
         // Initialize position to center if not set yet
         if (_config.PositionX == -1)
@@ -356,13 +364,13 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         int posX = _config.PositionX;
-        if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, _currentWindowSize.X))
+        if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, CurrentWindowSize.X))
         {
             _config.PositionX = posX;
         }
 
         int posY = _config.PositionY;
-        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, _currentWindowSize.Y))
+        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
         {
             _config.PositionY = posY;
         }
@@ -450,7 +458,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     {
         try
         {
-            _config.Enabled = IsEnabled;
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -477,7 +484,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             if (config != null)
             {
                 _config = config;
-                IsEnabled = _config.Enabled;
             }
         }
         catch (Exception ex)
@@ -490,9 +496,8 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     {
         _config = new TriangleConfig();
         // Set position to current window center
-        _config.PositionX = _currentWindowSize.X / 2;
-        _config.PositionY = _currentWindowSize.Y / 2;
-        IsEnabled = _config.Enabled;
+        _config.PositionX = CurrentWindowSize.X / 2;
+        _config.PositionY = CurrentWindowSize.Y / 2;
         _currentRotation = 0.0f;
     }
 

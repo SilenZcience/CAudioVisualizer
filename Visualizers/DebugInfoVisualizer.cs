@@ -33,7 +33,14 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     private double _avgFps = 0;
     private readonly List<double> _fpsHistory = new();
     private const int FPS_HISTORY_SIZE = 60; // Keep 1 second of history at 60fps
-    private Vector2i _currentWindowSize = new Vector2i(800, 600); // Fallback size (updated on first render)
+    private VisualizerManager? _visualizerManager;
+
+    private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
+
+    public void SetVisualizerManager(VisualizerManager manager)
+    {
+        _visualizerManager = manager;
+    }
 
     public void Initialize()
     {
@@ -89,9 +96,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     public void Render(Matrix4 projection, Vector2i windowSize)
     {
         if (!IsEnabled || !_config.Enabled) return;
-
-        // Update current window size for config GUI
-        _currentWindowSize = windowSize;
 
         // Set up ImGui window for FPS display
         ImGui.SetNextWindowPos(new System.Numerics.Vector2(_config.Position.X, _config.Position.Y));
@@ -163,16 +167,16 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         ImGui.Spacing();
 
         // Position controls
-        ImGui.Text($"Window Size: {_currentWindowSize.X} x {_currentWindowSize.Y}");
+        ImGui.Text($"Window Size: {CurrentWindowSize.X} x {CurrentWindowSize.Y}");
 
         var posX = _config.Position.X;
-        if (ImGui.SliderFloat("Position X", ref posX, 0.0f, _currentWindowSize.X))
+        if (ImGui.SliderFloat("Position X", ref posX, 0.0f, CurrentWindowSize.X))
         {
             _config.Position = new Vector2(posX, _config.Position.Y);
         }
 
         var posY = _config.Position.Y;
-        if (ImGui.SliderFloat("Position Y", ref posY, 0.0f, _currentWindowSize.Y))
+        if (ImGui.SliderFloat("Position Y", ref posY, 0.0f, CurrentWindowSize.Y))
         {
             _config.Position = new Vector2(_config.Position.X, posY);
         }

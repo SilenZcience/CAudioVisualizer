@@ -44,7 +44,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 {
     public string Name => "Circle";
     public string DisplayName => "Circle";
-    public bool IsEnabled { get; set; } = true;
+    public bool IsEnabled
+    {
+        get => _config.Enabled;
+        set => _config.Enabled = value;
+    }
 
     private CircleConfig _config = new();
     private int _vertexBufferObject;
@@ -54,8 +58,15 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private Random _random;
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
-    private Vector2i _currentWindowSize = new Vector2i(800, 600); // Fallback size (updated in render)
     private List<CircleFrame> _trailFrames = new();
+    private VisualizerManager? _visualizerManager;
+
+    private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
+
+    public void SetVisualizerManager(VisualizerManager manager)
+    {
+        _visualizerManager = manager;
+    }
 
     public CircleVisualizer()
     {
@@ -147,9 +158,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     public void Render(Matrix4 projection, Vector2i windowSize)
     {
         if (!IsEnabled || !_initialized) return;
-
-        // Update current window size for config GUI
-        _currentWindowSize = windowSize;
 
         // Initialize position to center if not set yet
         if (_config.PositionX == -1)
@@ -396,13 +404,13 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         int posX = _config.PositionX;
-        if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, _currentWindowSize.X))
+        if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, CurrentWindowSize.X))
         {
             _config.PositionX = posX;
         }
 
         int posY = _config.PositionY;
-        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, _currentWindowSize.Y))
+        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
         {
             _config.PositionY = posY;
         }
@@ -475,7 +483,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     {
         try
         {
-            _config.Enabled = IsEnabled;
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -502,7 +509,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             if (config != null)
             {
                 _config = config;
-                IsEnabled = _config.Enabled;
             }
         }
         catch (Exception ex)
@@ -515,10 +521,8 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     {
         _config = new CircleConfig();
         // Set position to current window center
-        _config.PositionX = _currentWindowSize.X / 2;
-        _config.PositionY = _currentWindowSize.Y / 2;
-        IsEnabled = _config.Enabled;
-        _random = new Random(12345);
+        _config.PositionX = CurrentWindowSize.X / 2;
+        _config.PositionY = CurrentWindowSize.Y / 2;
     }
 
     public void Dispose()

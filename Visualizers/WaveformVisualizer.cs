@@ -36,7 +36,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 {
     public string Name => "Waveform";
     public string DisplayName => "Waveform";
-    public bool IsEnabled { get; set; } = true;
+    public bool IsEnabled
+    {
+        get => _config.Enabled;
+        set => _config.Enabled = value;
+    }
 
     private WaveformConfig _config = new();
     private int _vertexBufferObject;
@@ -45,8 +49,15 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
-    private Vector2i _currentWindowSize = new Vector2i(800, 600);
     private List<WaveformFrame> _trailFrames = new();
+    private VisualizerManager? _visualizerManager;
+
+    private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
+
+    public void SetVisualizerManager(VisualizerManager manager)
+    {
+        _visualizerManager = manager;
+    }
 
     public void Initialize()
     {
@@ -131,9 +142,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     public void Render(Matrix4 projection, Vector2i windowSize)
     {
         if (!IsEnabled || !_initialized) return;
-
-        // Update current window size for config GUI
-        _currentWindowSize = windowSize;
 
         // Initialize positions if not set yet
         if (_config.PositionY == -1)
@@ -349,22 +357,22 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         int posY = _config.PositionY;
-        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, _currentWindowSize.Y))
+        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
         {
             _config.PositionY = posY;
         }
 
         int startX = _config.StartX;
-        if (ImGui.DragInt("Start X", ref startX, 1.0f, 0, _currentWindowSize.X))
+        if (ImGui.DragInt("Start X", ref startX, 1.0f, 0, CurrentWindowSize.X))
         {
             _config.StartX = startX;
             // Ensure StartX doesn't exceed EndX
             if (_config.StartX >= _config.EndX)
-                _config.EndX = Math.Min(_currentWindowSize.X, _config.StartX + 10);
+                _config.EndX = Math.Min(CurrentWindowSize.X, _config.StartX + 10);
         }
 
         int endX = _config.EndX;
-        if (ImGui.DragInt("End X", ref endX, 1.0f, 0, _currentWindowSize.X))
+        if (ImGui.DragInt("End X", ref endX, 1.0f, 0, CurrentWindowSize.X))
         {
             _config.EndX = endX;
             // Ensure EndX doesn't go below StartX
@@ -442,7 +450,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         try
         {
-            _config.Enabled = IsEnabled;
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -469,7 +476,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             if (config != null)
             {
                 _config = config;
-                IsEnabled = _config.Enabled;
             }
         }
         catch (Exception ex)
@@ -482,9 +488,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         _config = new WaveformConfig();
         // Set positions to current window defaults
-        _config.PositionY = _currentWindowSize.Y / 2;
-        _config.EndX = _currentWindowSize.X;
-        IsEnabled = _config.Enabled;
+        _config.PositionY = CurrentWindowSize.Y / 2;
+        _config.EndX = CurrentWindowSize.X;
     }
 
     public void Dispose()
