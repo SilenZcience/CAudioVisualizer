@@ -104,7 +104,7 @@ public class ConfigurationGui
             ImGui.Separator();
 
             int targetFps = _appConfig.TargetFPS;
-            if (ImGui.SliderInt("Target FPS", ref targetFps, 30, 360))
+            if (ImGui.SliderInt("Target FPS", ref targetFps, 16, 360))
             {
                 _appConfig.TargetFPS = targetFps;
                 _onConfigChanged?.Invoke();
