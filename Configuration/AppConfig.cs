@@ -7,6 +7,7 @@ public class AppConfig
     public int TargetFPS { get; set; } = 60;
     public bool EnableVSync { get; set; } = true;
     public int SelectedMonitorIndex { get; set; } = 0; // Index of the selected monitor
+    public bool SpanAllMonitors { get; set; } = false; // Whether to span across all monitors
 
     // Visualizer settings
     public Dictionary<string, string> VisualizerConfigs { get; set; } = new();
@@ -56,6 +57,7 @@ public class AppConfig
                     TargetFPS = config.TargetFPS;
                     EnableVSync = config.EnableVSync;
                     SelectedMonitorIndex = config.SelectedMonitorIndex;
+                    SpanAllMonitors = config.SpanAllMonitors;
                     VisualizerConfigs = config.VisualizerConfigs ?? new();
                     EnabledVisualizers = config.EnabledVisualizers ?? new();
                 }
@@ -72,6 +74,7 @@ public class AppConfig
         TargetFPS = 60;
         EnableVSync = true;
         SelectedMonitorIndex = 0;
+        SpanAllMonitors = false;
         VisualizerConfigs.Clear();
         EnabledVisualizers.Clear();
     }

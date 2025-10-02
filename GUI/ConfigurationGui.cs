@@ -129,7 +129,6 @@ public class ConfigurationGui
     }
 
 
-
     private void RenderVisualizerTabs()
     {
         foreach (var visualizer in _visualizerManager.Visualizers.Values)

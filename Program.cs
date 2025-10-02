@@ -39,13 +39,27 @@ public class AudioVisualizerWindow : GameWindow
     public void SwitchToMonitor(int monitorIndex)
     {
         var monitors = Monitors.GetMonitors();
-        if (monitorIndex >= 0 && monitorIndex < monitors.Count)
+
+        if (_appConfig?.SpanAllMonitors == true && monitors.Count > 1)
+        {
+            // Calculate full desktop bounds including taskbar areas
+            int minX = monitors.Min(m => m.ClientArea.Min.X);
+            int minY = monitors.Min(m => m.ClientArea.Min.Y);
+            int maxX = monitors.Max(m => m.ClientArea.Max.X);
+            int maxY = monitors.Max(m => m.ClientArea.Max.Y);
+
+            Location = new Vector2i(minX, minY);
+            ClientSize = new Vector2i(maxX - minX, maxY - minY);
+
+            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+            _imGuiController?.WindowResized(ClientSize.X, ClientSize.Y);
+        }
+        else if (monitorIndex >= 0 && monitorIndex < monitors.Count)
         {
             var selectedMonitor = monitors[monitorIndex];
             Location = new Vector2i(selectedMonitor.WorkArea.Min.X, selectedMonitor.WorkArea.Min.Y);
             ClientSize = new Vector2i(selectedMonitor.HorizontalResolution, selectedMonitor.VerticalResolution);
 
-            // Update viewport for OpenGL
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             _imGuiController?.WindowResized(ClientSize.X, ClientSize.Y);
         }
@@ -245,23 +259,50 @@ static class Program
 
         var gameWindowSettings = GameWindowSettings.Default;
 
-        // Get selected monitor or fallback to primary
+        // Get all monitors
         var monitors = Monitors.GetMonitors();
-        var selectedMonitor = monitors.Count > tempConfig.SelectedMonitorIndex && tempConfig.SelectedMonitorIndex >= 0
-            ? monitors[tempConfig.SelectedMonitorIndex]
-            : Monitors.GetPrimaryMonitor();
 
-        var nativeWindowSettings = new NativeWindowSettings()
+        NativeWindowSettings nativeWindowSettings;
+
+        if (tempConfig.SpanAllMonitors && monitors.Count > 1)
         {
-            Title = "Audio Visualizer - Made by Silas Kraume",
-            Flags = ContextFlags.ForwardCompatible,
-            Profile = ContextProfile.Core,
-            APIVersion = new Version(4, 6),
-            WindowBorder = WindowBorder.Hidden,
-            WindowState = WindowState.Normal,
-            ClientSize = new Vector2i(selectedMonitor.HorizontalResolution, selectedMonitor.VerticalResolution),
-            Location = new Vector2i(selectedMonitor.WorkArea.Min.X, selectedMonitor.WorkArea.Min.Y)
-        };
+            // Calculate full desktop bounds including taskbar areas
+            int minX = 0; // Start from screen origin
+            int minY = 0;
+            int maxX = monitors.Max(m => m.ClientArea.Max.X);
+            int maxY = monitors.Max(m => m.ClientArea.Max.Y);
+
+            nativeWindowSettings = new NativeWindowSettings()
+            {
+                Title = "Audio Visualizer - Made by Silas Kraume (Multi-Monitor)",
+                Flags = ContextFlags.ForwardCompatible,
+                Profile = ContextProfile.Core,
+                APIVersion = new Version(4, 6),
+                WindowBorder = WindowBorder.Hidden,
+                WindowState = WindowState.Normal,
+                ClientSize = new Vector2i(maxX - minX, maxY - minY),
+                Location = new Vector2i(minX, minY)
+            };
+        }
+        else
+        {
+            // Single monitor mode (existing behavior)
+            var selectedMonitor = monitors.Count > tempConfig.SelectedMonitorIndex && tempConfig.SelectedMonitorIndex >= 0
+                ? monitors[tempConfig.SelectedMonitorIndex]
+                : Monitors.GetPrimaryMonitor();
+
+            nativeWindowSettings = new NativeWindowSettings()
+            {
+                Title = "Audio Visualizer - Made by Silas Kraume",
+                Flags = ContextFlags.ForwardCompatible,
+                Profile = ContextProfile.Core,
+                APIVersion = new Version(4, 6),
+                WindowBorder = WindowBorder.Hidden,
+                WindowState = WindowState.Normal,
+                ClientSize = new Vector2i(selectedMonitor.HorizontalResolution, selectedMonitor.VerticalResolution),
+                Location = new Vector2i(selectedMonitor.WorkArea.Min.X, selectedMonitor.WorkArea.Min.Y)
+            };
+        }
 
         using var window = new AudioVisualizerWindow(gameWindowSettings, nativeWindowSettings);
         window.Run();
