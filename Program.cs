@@ -84,7 +84,6 @@ public class AudioVisualizerWindow : GameWindow
         }
 
         _visualizerManager = new VisualizerManager();
-
         _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
 
         _configGui = new ConfigurationGui(_visualizerManager, _appConfig, ApplyConfigurationSettings, this);
@@ -104,7 +103,6 @@ public class AudioVisualizerWindow : GameWindow
     {
         try
         {
-            // Use the AudioDeviceManager to create capture with selected device
             _capture = AudioDeviceManager.CreateLoopbackCapture(_appConfig.SelectedAudioDeviceId);
 
             Console.WriteLine($"Audio Device: {_appConfig.SelectedAudioDeviceName}");
@@ -127,7 +125,6 @@ public class AudioVisualizerWindow : GameWindow
     {
         try
         {
-            // Stop current capture
             if (_capture != null)
             {
                 _capture.StopRecording();
@@ -136,17 +133,14 @@ public class AudioVisualizerWindow : GameWindow
                 _capture = null;
             }
 
-            // Update configuration
             _appConfig.SelectedAudioDeviceId = deviceId;
             _appConfig.SelectedAudioDeviceName = deviceName;
 
-            // Clear audio buffer
             lock (_bufferLock)
             {
                 _audioBuffer.Clear();
             }
 
-            // Start new capture
             SetupAudioCapture();
 
             Console.WriteLine($"Switched to audio device: {deviceName}");
@@ -294,13 +288,11 @@ static class Program
 {
     static void Main()
     {
-        // Load configuration early to get monitor selection
         var tempConfig = new CAudioVisualizer.Configuration.AppConfig();
         tempConfig.LoadConfiguration(CAudioVisualizer.Configuration.AppConfig.GetConfigFilePath());
 
         var gameWindowSettings = GameWindowSettings.Default;
 
-        // Get all monitors
         var monitors = Monitors.GetMonitors();
 
         NativeWindowSettings nativeWindowSettings;
@@ -326,7 +318,6 @@ static class Program
         }
         else
         {
-            // Single monitor mode (existing behavior)
             var selectedMonitor = monitors.Count > tempConfig.SelectedMonitorIndex && tempConfig.SelectedMonitorIndex >= 0
                 ? monitors[tempConfig.SelectedMonitorIndex]
                 : Monitors.GetPrimaryMonitor();

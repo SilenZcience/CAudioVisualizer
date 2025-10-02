@@ -30,6 +30,7 @@ public class WaveformConfig
     public float FadeSpeed { get; set; } = 0.95f; // How fast waveforms fade (0.9 = slow, 0.99 = fast)
     public int TrailLength { get; set; } = 20; // Maximum number of trail waveforms
     public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
+    public bool Reverse { get; set; } = false; // Reverse waveform direction (right-to-left)
 }
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
@@ -271,8 +272,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Generate waveform points - one per pixel like GDI+ version
         for (int x = 0; x < waveformWidth; x++)
         {
+            // Handle reverse option
+            int actualX = _config.Reverse ? (waveformWidth - 1 - x) : x;
+
             // Calculate sample index with interpolation for smoother curves
-            float exactIndex = x * (dataSource.Length / (float)waveformWidth);
+            float exactIndex = actualX * (dataSource.Length / (float)waveformWidth);
             int sampleIndex = (int)exactIndex;
 
             // Scale sample and calculate Y position
@@ -351,6 +355,15 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         float lineThickness = _config.LineThickness;
         if (ImGui.SliderFloat("Line Thickness", ref lineThickness, 1.0f, 10.0f))
             _config.LineThickness = lineThickness;
+
+        bool reverse = _config.Reverse;
+        if (ImGui.Checkbox("Reverse Waveform", ref reverse))
+            _config.Reverse = reverse;
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Reverses the waveform horizontally (mirror effect).");
+        }
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Position");

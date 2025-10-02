@@ -16,6 +16,9 @@ public class ConfigurationGui
     private List<AudioDeviceInfo>? _audioDevices;
     private string[]? _deviceNames;
 
+    // UI state for instance management
+    private int _selectedTypeIndex = 0;
+
     public ConfigurationGui(VisualizerManager visualizerManager, AppConfig appConfig, Action? onConfigChanged = null, CAudioVisualizer.AudioVisualizerWindow? window = null)
     {
         _visualizerManager = visualizerManager;
@@ -75,9 +78,9 @@ public class ConfigurationGui
                     CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
                     // _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
 
-                    foreach (var visualizer in _visualizerManager.Visualizers.Values)
+                    foreach (var instance in _visualizerManager.GetAllInstances().Values)
                     {
-                        if (visualizer is IConfigurable configurable)
+                        if (instance.Visualizer is IConfigurable configurable)
                         {
                             configurable.ResetToDefaults();
                         }
@@ -167,11 +170,9 @@ public class ConfigurationGui
                 {
                     var selectedDevice = _audioDevices[currentDeviceIndex];
 
-                    // Update configuration
                     _appConfig.SelectedAudioDeviceId = selectedDevice.Id;
                     _appConfig.SelectedAudioDeviceName = selectedDevice.Name;
 
-                    // Change audio device in the main window
                     if (_window != null)
                     {
                         _window.ChangeAudioDevice(selectedDevice.Id, selectedDevice.Name);
@@ -212,7 +213,6 @@ public class ConfigurationGui
                 _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
             }
 
-            // Show helpful text based on monitor count
             if (monitors.Count <= 1)
             {
                 ImGui.SameLine();
@@ -231,25 +231,97 @@ public class ConfigurationGui
 
     private void RenderVisualizerTabs()
     {
-        foreach (var visualizer in _visualizerManager.Visualizers.Values)
+        // Add the "Manage Instances" tab first
+        if (ImGui.BeginTabItem("Manage Instances"))
         {
-            if (ImGui.BeginTabItem(visualizer.Name))
+            RenderInstanceManagementTab();
+            ImGui.EndTabItem();
+        }
+
+        // Render a tab for each visualizer instance
+        foreach (var instance in _visualizerManager.GetAllInstances().Values)
+        {
+            if (ImGui.BeginTabItem(instance.DisplayName))
             {
-                ImGui.Text($"{visualizer.Name} Configuration");
+                ImGui.Text($"{instance.DisplayName} Configuration");
                 ImGui.Separator();
 
-                bool isEnabled = visualizer.IsEnabled;
+                bool isEnabled = instance.Visualizer.IsEnabled;
                 if (ImGui.Checkbox("Enabled", ref isEnabled))
                 {
-                    _visualizerManager.ToggleVisualizer(visualizer.Name, isEnabled);
+                    _visualizerManager.ToggleVisualizer(instance.InstanceId, isEnabled);
                 }
 
                 ImGui.Separator();
 
                 // Render visualizer-specific configuration
-                visualizer.RenderConfigGui();
+                instance.Visualizer.RenderConfigGui();
 
                 ImGui.EndTabItem();
+            }
+        }
+    }
+
+    private void RenderInstanceManagementTab()
+    {
+        ImGui.Text("Visualizer Instance Management");
+        ImGui.Separator();
+
+        // Show current instances
+        ImGui.Text("Current Instances:");
+        var instances = _visualizerManager.GetAllInstances();
+
+        foreach (var instance in instances.Values)
+        {
+            ImGui.BulletText($"{instance.DisplayName} ({instance.TypeName}) - {(instance.Visualizer.IsEnabled ? "Enabled" : "Disabled")}");
+            ImGui.SameLine();
+
+            if (ImGui.SmallButton($"Remove##{instance.InstanceId}"))
+            {
+                _visualizerManager.RemoveVisualizerInstance(instance.InstanceId);
+
+                // Save the updated configuration immediately
+                if (_appConfig != null)
+                {
+                    _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
+                    _onConfigChanged?.Invoke();
+                }
+                break; // Break to avoid modifying collection while iterating
+            }
+        }
+
+        ImGui.Separator();
+        ImGui.Text("Add New Instance:");
+
+        // Dropdown for visualizer types
+        var availableTypes = _visualizerManager.GetAvailableVisualizerTypes().ToArray();
+
+        if (availableTypes.Length > 0)
+        {
+            if (ImGui.Combo("Visualizer Type", ref _selectedTypeIndex, availableTypes, availableTypes.Length))
+            {
+                // Selection changed, but we don't need to do anything here
+            }
+
+            if (ImGui.Button("Add Instance"))
+            {
+                if (_selectedTypeIndex >= 0 && _selectedTypeIndex < availableTypes.Length)
+                {
+                    var typeName = availableTypes[_selectedTypeIndex];
+                    var newInstance = VisualizerFactory.CreateVisualizerInstance(typeName, instances.Values);
+
+                    if (newInstance != null)
+                    {
+                        _visualizerManager.RegisterVisualizerInstance(newInstance);
+
+                        // Save the updated configuration immediately
+                        if (_appConfig != null)
+                        {
+                            _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
+                            _onConfigChanged?.Invoke();
+                        }
+                    }
+                }
             }
         }
     }

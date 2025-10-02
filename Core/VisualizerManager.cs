@@ -1,52 +1,56 @@
 using OpenTK.Mathematics;
 using CAudioVisualizer.Visualizers;
+using CAudioVisualizer.Configuration;
 
 namespace CAudioVisualizer.Core;
 
 public class VisualizerManager : IDisposable
 {
-    private readonly Dictionary<string, IVisualizer> _visualizers = new();
+    private readonly Dictionary<string, VisualizerInstance> _instances = new();
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
 
-    public IReadOnlyDictionary<string, IVisualizer> Visualizers => _visualizers;
-
-    public VisualizerManager()
+    public void RegisterVisualizerInstance(VisualizerInstance instance)
     {
-        InitializeVisualizers();
-    }
-
-    private void InitializeVisualizers()
-    {
-        RegisterVisualizer(new CircleVisualizer());
-        RegisterVisualizer(new WaveformVisualizer());
-        RegisterVisualizer(new ReverseWaveformVisualizer());
-        RegisterVisualizer(new TriangleVisualizer());
-        RegisterVisualizer(new DebugInfoVisualizer());
-
-        foreach (var visualizer in _visualizers.Values)
+        if (_instances.ContainsKey(instance.InstanceId))
         {
-            visualizer.Initialize();
-        }
-    }
-
-    public void RegisterVisualizer(IVisualizer visualizer)
-    {
-        if (_visualizers.ContainsKey(visualizer.Name))
-        {
-            Console.WriteLine($"Warning: Visualizer '{visualizer.Name}' is already registered.");
+            Console.WriteLine($"Warning: Visualizer instance '{instance.InstanceId}' is already registered.");
             return;
         }
 
-        _visualizers[visualizer.Name] = visualizer;
-        visualizer.IsEnabled = true;
-        visualizer.SetVisualizerManager(this);
+        _instances[instance.InstanceId] = instance;
+        instance.Visualizer.SetVisualizerManager(this);
+
+        // Set instance display name for visualizers that need unique identification
+        if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
+        {
+            debugVisualizer.SetInstanceDisplayName(instance.DisplayName);
+        }
+
+        instance.Visualizer.Initialize();
+
+        Console.WriteLine($"Registered visualizer instance: {instance.DisplayName} ({instance.InstanceId})");
+    }
+
+    public bool RemoveVisualizerInstance(string instanceId)
+    {
+        if (_instances.TryGetValue(instanceId, out var instance))
+        {
+            instance.Visualizer.Dispose();
+            _instances.Remove(instanceId);
+            Console.WriteLine($"Removed visualizer instance: {instance.DisplayName} ({instanceId})");
+            return true;
+        }
+        return false;
     }
 
     public void UpdateVisualizers(float[] waveformData, float[] fftData, double deltaTime)
     {
-        foreach (var visualizer in _visualizers.Values.Where(v => v.IsEnabled))
+        foreach (var instance in _instances.Values)
         {
-            visualizer.Update(waveformData, fftData, deltaTime);
+            if (instance.Visualizer.IsEnabled)
+            {
+                instance.Visualizer.Update(waveformData, fftData, deltaTime);
+            }
         }
     }
 
@@ -55,9 +59,12 @@ public class VisualizerManager : IDisposable
         // Update current window size for all visualizers to reference
         _currentWindowSize = windowSize;
 
-        foreach (var visualizer in _visualizers.Values.Where(v => v.IsEnabled))
+        foreach (var instance in _instances.Values)
         {
-            visualizer.Render(projection, windowSize);
+            if (instance.Visualizer.IsEnabled)
+            {
+                instance.Visualizer.Render(projection, windowSize);
+            }
         }
     }
 
@@ -66,11 +73,21 @@ public class VisualizerManager : IDisposable
         return _currentWindowSize;
     }
 
-    public void ToggleVisualizer(string name, bool enabled)
+    public Dictionary<string, VisualizerInstance> GetAllInstances()
     {
-        if (_visualizers.TryGetValue(name, out var visualizer))
+        return _instances;
+    }
+
+    public IEnumerable<string> GetAvailableVisualizerTypes()
+    {
+        return VisualizerFactory.GetAvailableTypes();
+    }
+
+    public void ToggleVisualizer(string instanceId, bool enabled)
+    {
+        if (_instances.TryGetValue(instanceId, out var instance))
         {
-            visualizer.IsEnabled = enabled;
+            instance.Visualizer.IsEnabled = enabled;
         }
     }
 
@@ -79,28 +96,26 @@ public class VisualizerManager : IDisposable
         configs.Clear();
         enabledVisualizers.Clear();
 
-        foreach (var kvp in _visualizers)
+        foreach (var kvp in _instances)
         {
-            var visualizer = kvp.Value;
-            var name = kvp.Key;
+            var instance = kvp.Value;
+            var instanceId = kvp.Key;
 
-            // Save enabled state
-            if (visualizer.IsEnabled)
+            if (instance.Visualizer.IsEnabled)
             {
-                enabledVisualizers.Add(name);
+                enabledVisualizers.Add(instanceId);
             }
 
-            // Save configuration if visualizer is configurable
-            if (visualizer is IConfigurable configurable)
+            if (instance.Visualizer is IConfigurable configurable)
             {
                 try
                 {
                     var config = configurable.SaveConfiguration();
-                    configs[name] = config;
+                    configs[instanceId] = config;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Failed to save configuration for {name}: {ex.Message}");
+                    Console.WriteLine($"Failed to save configuration for {instanceId}: {ex.Message}");
                 }
             }
         }
@@ -108,19 +123,43 @@ public class VisualizerManager : IDisposable
 
     public void LoadVisualizerConfigurations(Dictionary<string, string> configs, List<string> enabledVisualizers)
     {
-        // Load enabled states
-        foreach (var kvp in _visualizers)
+        // Recreate instances from configuration keys
+        foreach (var instanceId in configs.Keys)
         {
-            kvp.Value.IsEnabled = enabledVisualizers.Contains(kvp.Key);
+            if (!_instances.ContainsKey(instanceId))
+            {
+                var instance = CreateInstanceFromId(instanceId);
+                if (instance != null)
+                {
+                    RegisterVisualizerInstance(instance);
+                }
+            }
         }
 
-        // Load configurations
+        // Also create instances for enabled visualizers that might not have configs yet
+        foreach (var instanceId in enabledVisualizers)
+        {
+            if (!_instances.ContainsKey(instanceId))
+            {
+                var instance = CreateInstanceFromId(instanceId);
+                if (instance != null)
+                {
+                    RegisterVisualizerInstance(instance);
+                }
+            }
+        }
+
+        foreach (var kvp in _instances)
+        {
+            kvp.Value.Visualizer.IsEnabled = enabledVisualizers.Contains(kvp.Key);
+        }
+
         foreach (var configKvp in configs)
         {
-            var name = configKvp.Key;
+            var instanceId = configKvp.Key;
             var configJson = configKvp.Value;
 
-            if (_visualizers.TryGetValue(name, out var visualizer) && visualizer is IConfigurable configurable)
+            if (_instances.TryGetValue(instanceId, out var instance) && instance.Visualizer is IConfigurable configurable)
             {
                 try
                 {
@@ -128,19 +167,43 @@ public class VisualizerManager : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Failed to load configuration for {name}: {ex.Message}");
+                    Console.WriteLine($"Failed to load configuration for {instanceId}: {ex.Message}");
                 }
             }
         }
     }
 
+    private VisualizerInstance? CreateInstanceFromId(string instanceId)
+    {
+        // Parse instance ID format: "TypeName_InstanceNumber"
+        var parts = instanceId.Split('_');
+        if (parts.Length < 2) return null;
+
+        var typeName = parts[0];
+        if (!int.TryParse(parts[1], out var instanceNumber)) return null;
+
+        var visualizer = VisualizerFactory.CreateVisualizer(typeName);
+        if (visualizer == null) return null;
+
+        var displayName = instanceNumber == 1 ? typeName : $"{typeName} {instanceNumber}";
+        var instance = new VisualizerInstance(instanceId, typeName, displayName, visualizer);
+
+        // Set instance display name for visualizers that need unique identification
+        if (visualizer is DebugInfoVisualizer debugVisualizer)
+        {
+            debugVisualizer.SetInstanceDisplayName(displayName);
+        }
+
+        return instance;
+    }
+
     public void Dispose()
     {
-        foreach (var visualizer in _visualizers.Values)
+        foreach (var instance in _instances.Values)
         {
-            visualizer.Dispose();
+            instance.Visualizer.Dispose();
         }
-        _visualizers.Clear();
+        _instances.Clear();
 
         GC.SuppressFinalize(this);
     }
