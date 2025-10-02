@@ -1,18 +1,38 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Disable aggressive trimming for audio libraries -->
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
+  <!-- Preserve NAudio and related assemblies from trimming -->
   <ItemGroup>
-    <PackageReference Include="OpenTK" Version="4.9.4" />
+    <TrimmerRootAssembly Include="NAudio" />
+    <TrimmerRootAssembly Include="NAudio.Core" />
+    <TrimmerRootAssembly Include="NAudio.Wasapi" />
+    <TrimmerRootAssembly Include="NAudio.WinMM" />
+    <TrimmerRootAssembly Include="NAudio.Asio" />
+    <TrimmerRootAssembly Include="OpenTK" />
+    <TrimmerRootAssembly Include="OpenTK.Audio.OpenAL" />
+    <TrimmerRootAssembly Include="OpenTK.Graphics" />
+    <TrimmerRootAssembly Include="OpenTK.Windowing.Desktop" />
+    <TrimmerRootAssembly Include="ImGui.NET" />
+    <TrimmerRootAssembly Include="MathNet.Numerics" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NAudio" Version="2.2.1" />
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="OpenTK" Version="4.9.4" />
     <PackageReference Include="ImGui.NET" Version="1.91.0.1" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
   </ItemGroup>
 
