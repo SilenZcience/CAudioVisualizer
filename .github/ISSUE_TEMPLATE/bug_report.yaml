@@ -1,0 +1,49 @@
+name: Bug Report
+description: Problems, Issues, Unexpected Behaviour
+title: "🐛 Bug Report: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "
+        Thank you for finding the time to report the problem!"
+  - type: textarea
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+      placeholder: >
+        Please provide the context in which the problem occurred and explain what happened
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: "
+        Please explain why you think the behaviour is erroneous. \n
+        If applicable, add the files (e.g. the config.json) used (or a simplistic variant of them) to help explain your problem. \n
+        If applicable, add screenshots to help explain your problem. \n
+        (You can include files by dragging and dropping them here.)"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: To Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: "
+        1. Use the '...' \n
+        2. Use the config option '...' \n
+        3. See error"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: CAudioVisualizer Version
+      description: >
+        What CAudioVisualizer version are you using?
+  - type: textarea
+    attributes:
+      label: Environment
+      description: In which environment does the problem occur?
+      placeholder: >
+        OS: [e.g. Windows 24H2, ...]
