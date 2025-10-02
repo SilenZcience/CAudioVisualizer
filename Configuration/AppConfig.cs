@@ -9,6 +9,10 @@ public class AppConfig
     public int SelectedMonitorIndex { get; set; } = 0; // Index of the selected monitor
     public bool SpanAllMonitors { get; set; } = false; // Whether to span across all monitors
 
+    // Audio device settings
+    public string SelectedAudioDeviceId { get; set; } = ""; // Device ID of selected audio device (empty = default)
+    public string SelectedAudioDeviceName { get; set; } = "Default Device"; // Friendly name for UI
+
     // Visualizer settings
     public Dictionary<string, string> VisualizerConfigs { get; set; } = new();
     public List<string> EnabledVisualizers { get; set; } = new();
@@ -58,6 +62,8 @@ public class AppConfig
                     EnableVSync = config.EnableVSync;
                     SelectedMonitorIndex = config.SelectedMonitorIndex;
                     SpanAllMonitors = config.SpanAllMonitors;
+                    SelectedAudioDeviceId = config.SelectedAudioDeviceId ?? "";
+                    SelectedAudioDeviceName = config.SelectedAudioDeviceName ?? "Default Device";
                     VisualizerConfigs = config.VisualizerConfigs ?? new();
                     EnabledVisualizers = config.EnabledVisualizers ?? new();
                 }

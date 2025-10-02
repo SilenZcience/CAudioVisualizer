@@ -77,6 +77,12 @@ public class AudioVisualizerWindow : GameWindow
         _appConfig = new AppConfig();
         _appConfig.LoadConfiguration(AppConfig.GetConfigFilePath());
 
+        // Initialize audio device name if not set
+        if (string.IsNullOrEmpty(_appConfig.SelectedAudioDeviceName))
+        {
+            _appConfig.SelectedAudioDeviceName = AudioDeviceManager.GetDeviceName(_appConfig.SelectedAudioDeviceId);
+        }
+
         _visualizerManager = new VisualizerManager();
 
         _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
@@ -98,8 +104,10 @@ public class AudioVisualizerWindow : GameWindow
     {
         try
         {
-            _capture = new WasapiLoopbackCapture();
+            // Use the AudioDeviceManager to create capture with selected device
+            _capture = AudioDeviceManager.CreateLoopbackCapture(_appConfig.SelectedAudioDeviceId);
 
+            Console.WriteLine($"Audio Device: {_appConfig.SelectedAudioDeviceName}");
             Console.WriteLine($"Sample Rate: {_capture.WaveFormat.SampleRate} Hz");
             Console.WriteLine($"Channels: {_capture.WaveFormat.Channels}");
             Console.WriteLine($"Bits Per Sample: {_capture.WaveFormat.BitsPerSample}");
@@ -112,6 +120,40 @@ public class AudioVisualizerWindow : GameWindow
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to initialize audio capture: {ex.Message}");
+        }
+    }
+
+    public void ChangeAudioDevice(string deviceId, string deviceName)
+    {
+        try
+        {
+            // Stop current capture
+            if (_capture != null)
+            {
+                _capture.StopRecording();
+                _capture.DataAvailable -= OnDataAvailable;
+                _capture.Dispose();
+                _capture = null;
+            }
+
+            // Update configuration
+            _appConfig.SelectedAudioDeviceId = deviceId;
+            _appConfig.SelectedAudioDeviceName = deviceName;
+
+            // Clear audio buffer
+            lock (_bufferLock)
+            {
+                _audioBuffer.Clear();
+            }
+
+            // Start new capture
+            SetupAudioCapture();
+
+            Console.WriteLine($"Switched to audio device: {deviceName}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to change audio device: {ex.Message}");
         }
     }
 
