@@ -54,7 +54,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private VisualizerManager? _visualizerManager;
 
     private int _projectionLocation = -1;
-    private readonly List<float> _vertexBuffer = new();
     private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
@@ -220,8 +219,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
     private WaveformFrame GenerateCurrentWaveform(Vector2i windowSize)
     {
-        _vertexBuffer.Clear();
-
         // Select data source based on configuration
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
 
@@ -229,7 +226,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = _vertexBuffer,
+                Vertices = new List<float>(),
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
@@ -248,7 +245,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = _vertexBuffer,
+                Vertices = new List<float>(),
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
@@ -262,12 +259,14 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             return new WaveformFrame
             {
-                Vertices = _vertexBuffer,
+                Vertices = new List<float>(),
                 Color = _config.Color,
                 Brightness = 1.0f,
                 LineWidth = _config.LineThickness
             };
         }
+
+        var vertexBuffer = new List<float>(waveformWidth * 6);
 
         // Get current color
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
@@ -291,17 +290,17 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             float pixelX = startPixel + x;
 
             // Add vertex (position + color)
-            _vertexBuffer.Add(pixelX);           // X
-            _vertexBuffer.Add(y);                // Y
-            _vertexBuffer.Add(0.0f);             // Z
-            _vertexBuffer.Add(color.X);          // R
-            _vertexBuffer.Add(color.Y);          // G
-            _vertexBuffer.Add(color.Z);          // B
+            vertexBuffer.Add(pixelX);           // X
+            vertexBuffer.Add(y);                // Y
+            vertexBuffer.Add(0.0f);             // Z
+            vertexBuffer.Add(color.X);          // R
+            vertexBuffer.Add(color.Y);          // G
+            vertexBuffer.Add(color.Z);          // B
         }
 
         return new WaveformFrame
         {
-            Vertices = _vertexBuffer,
+            Vertices = vertexBuffer,
             Color = color,
             Brightness = 1.0f,
             LineWidth = _config.LineThickness
