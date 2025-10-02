@@ -13,8 +13,8 @@ public class DebugInfoConfig
     public Vector2 Position { get; set; } = new Vector2(10.0f, 10.0f); // Top-left corner
     public float FontSize { get; set; } = 24.0f;
     public bool ShowFpsStats { get; set; } = true; // Show FPS information
-    public bool ShowAudioInfo { get; set; } = false; // Show audio buffer info
     public bool ShowSystemInfo { get; set; } = false; // Show system information
+    public bool ShowHotkeyTooltip { get; set; } = false; // Show hotkey tooltip
 }
 
 public class DebugInfoVisualizer : IVisualizer, IConfigurable
@@ -35,6 +35,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     private const int FPS_HISTORY_SIZE = 60; // Keep 1 second of history at 60fps
     private VisualizerManager? _visualizerManager;
     private string _instanceDisplayName = "Debug Info"; // Store the instance display name
+    private double _deltaTime = 0;
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -75,6 +76,8 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
     public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
+        _deltaTime = deltaTime;
+
         // Update FPS calculation
         _frameCount++;
 
@@ -131,30 +134,39 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                     ImGui.TextColored(color, $"Min: {_minFps:F1} | Max: {_maxFps:F1} | Avg: {_avgFps:F1}");
                 }
 
-                if (_config.ShowAudioInfo || _config.ShowSystemInfo)
-                    ImGui.Separator();
-            }
-
-            // Audio Information
-            if (_config.ShowAudioInfo)
-            {
-                ImGui.TextColored(color, "Audio Info:");
-                ImGui.TextColored(color, $"Buffer Size: 1024 samples");
-                ImGui.TextColored(color, $"Sample Rate: 44.1 kHz");
-                ImGui.TextColored(color, $"Frequency Bins: 512");
-
-                if (_config.ShowSystemInfo)
+                if (_config.ShowSystemInfo || _config.ShowHotkeyTooltip)
                     ImGui.Separator();
             }
 
             // System Information
             if (_config.ShowSystemInfo)
             {
-                var gcMemory = GC.GetTotalMemory(false) / (1024 * 1024);
-                ImGui.TextColored(color, "System Info:");
-                ImGui.TextColored(color, $"Memory: {gcMemory} MB");
-                ImGui.TextColored(color, $"Threads: {System.Threading.ThreadPool.ThreadCount}");
-                ImGui.TextColored(color, $"Gen 0 GC: {GC.CollectionCount(0)}");
+                try
+                {
+                    var process = Process.GetCurrentProcess();
+                    var gcMemory = GC.GetTotalMemory(false) / (1024 * 1024);
+                    var workingSet = process.WorkingSet64 / (1024 * 1024);
+
+                    ImGui.TextColored(color, "System Info:");
+                    ImGui.TextColored(color, $"CPU Cores: {Environment.ProcessorCount}");
+                    ImGui.TextColored(color, $"Threads: {process.Threads.Count}");
+                    ImGui.TextColored(color, $"Working Set: {workingSet} MB");
+                    ImGui.TextColored(color, $"GC Memory: {gcMemory} MB");
+                    ImGui.TextColored(color, $"Gen 0/1/2 GC: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}");
+                    ImGui.TextColored(color, $"Frame Time: {_deltaTime * 1000:F1}ms");
+                }
+                catch
+                {
+                    ImGui.TextColored(color, "System Info: Error reading data");
+                }
+                if (_config.ShowHotkeyTooltip)
+                    ImGui.Separator();
+            }
+
+            // Hotkey Tooltip
+            if (_config.ShowHotkeyTooltip)
+            {
+                ImGui.TextColored(color, "Config Menu Hotkey: F3");
             }
 
             ImGui.End();
@@ -205,16 +217,16 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
             _config.ShowFpsStats = showFpsStats;
         }
 
-        var showAudioInfo = _config.ShowAudioInfo;
-        if (ImGui.Checkbox("Show Audio Info", ref showAudioInfo))
-        {
-            _config.ShowAudioInfo = showAudioInfo;
-        }
-
         var showSystemInfo = _config.ShowSystemInfo;
         if (ImGui.Checkbox("Show System Info", ref showSystemInfo))
         {
             _config.ShowSystemInfo = showSystemInfo;
+        }
+
+        var showHotkeyTooltip = _config.ShowHotkeyTooltip;
+        if (ImGui.Checkbox("Show Hotkey Tooltip", ref showHotkeyTooltip))
+        {
+            _config.ShowHotkeyTooltip = showHotkeyTooltip;
         }
 
         ImGui.Spacing();
@@ -282,6 +294,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
     public void Dispose()
     {
-        // Nothing to dispose for this visualizer
+        // No unmanaged resources to dispose
     }
 }
