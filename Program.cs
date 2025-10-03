@@ -95,7 +95,8 @@ public class AudioVisualizerWindow : GameWindow
 
     private void ApplyConfigurationSettings()
     {
-        UpdateFrequency = _appConfig.TargetFPS;
+        // Set FPS: 0 means unlimited in OpenTK
+        UpdateFrequency = _appConfig.UnlimitedFPS ? 0 : _appConfig.TargetFPS;
         VSync = _appConfig.EnableVSync ? VSyncMode.On : VSyncMode.Off;
     }
 

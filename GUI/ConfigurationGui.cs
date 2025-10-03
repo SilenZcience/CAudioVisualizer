@@ -103,13 +103,35 @@ public class ConfigurationGui
             ImGui.Text("General Settings");
             ImGui.Separator();
 
-            int targetFps = _appConfig.TargetFPS;
-            if (ImGui.SliderInt("Target FPS", ref targetFps, 16, 360))
+            bool unlimitedFps = _appConfig.UnlimitedFPS;
+            if (ImGui.Checkbox("Unlimited FPS", ref unlimitedFps))
             {
-                _appConfig.TargetFPS = targetFps;
+                _appConfig.UnlimitedFPS = unlimitedFps;
                 _onConfigChanged?.Invoke();
                 // Reset FPS statistics when target changes
                 CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Allow the application to run at maximum possible framerate.\nWarning: This may cause high CPU/GPU usage and heat generation.");
+            }
+
+            // Only show FPS slider if unlimited FPS is disabled
+            if (!_appConfig.UnlimitedFPS)
+            {
+                int targetFps = _appConfig.TargetFPS;
+                if (ImGui.SliderInt("Target FPS", ref targetFps, 16, 360))
+                {
+                    _appConfig.TargetFPS = targetFps;
+                    _onConfigChanged?.Invoke();
+                    // Reset FPS statistics when target changes
+                    CAudioVisualizer.Visualizers.DebugInfoVisualizer.ResetFpsStats();
+                }
+            }
+            else
+            {
+                ImGui.TextDisabled("Target FPS: Unlimited");
             }
 
             bool enableVSync = _appConfig.EnableVSync;

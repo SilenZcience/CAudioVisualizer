@@ -5,6 +5,7 @@ namespace CAudioVisualizer.Configuration;
 public class AppConfig
 {
     public int TargetFPS { get; set; } = 60;
+    public bool UnlimitedFPS { get; set; } = false;
     public bool EnableVSync { get; set; } = true;
     public int SelectedMonitorIndex { get; set; } = 0; // Index of the selected monitor
     public bool SpanAllMonitors { get; set; } = false; // Whether to span across all monitors
@@ -59,6 +60,7 @@ public class AppConfig
                 if (config != null)
                 {
                     TargetFPS = config.TargetFPS;
+                    UnlimitedFPS = config.UnlimitedFPS;
                     EnableVSync = config.EnableVSync;
                     SelectedMonitorIndex = config.SelectedMonitorIndex;
                     SpanAllMonitors = config.SpanAllMonitors;
@@ -78,6 +80,7 @@ public class AppConfig
     public void ResetToDefaults()
     {
         TargetFPS = 60;
+        UnlimitedFPS = false;
         EnableVSync = true;
         // SelectedMonitorIndex = 0;
         // SpanAllMonitors = false;
