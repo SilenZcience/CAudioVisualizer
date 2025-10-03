@@ -30,7 +30,8 @@ public class WaveformConfig
     public float FadeSpeed { get; set; } = 0.95f; // How fast waveforms fade (0.9 = slow, 0.99 = fast)
     public int TrailLength { get; set; } = 20; // Maximum number of trail waveforms
     public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
-    public bool Reverse { get; set; } = false; // Reverse waveform direction (right-to-left)
+    public bool FlipV { get; set; } = false; // Flip waveform vertically (left <-> right)
+    public bool FlipH { get; set; } = false; // Flip waveform horizontally (up <-> down)
 }
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
@@ -275,8 +276,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Generate waveform points - one per pixel like GDI+ version
         for (int x = 0; x < waveformWidth; x++)
         {
-            // Handle reverse option
-            int actualX = _config.Reverse ? (waveformWidth - 1 - x) : x;
+            // Handle flipV option
+            int actualX = _config.FlipV ? (waveformWidth - 1 - x) : x;
 
             // Calculate sample index with interpolation for smoother curves
             float exactIndex = actualX * (dataSource.Length / (float)waveformWidth);
@@ -284,6 +285,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
             // Scale sample and calculate Y position
             float scaledSample = dataSource[sampleIndex] * _config.Amplitude;
+
+            // Apply horizontal flip if enabled (invert amplitude)
+            if (_config.FlipH)
+                scaledSample = -scaledSample;
+
             float y = centerY - scaledSample * (windowSize.Y * 0.4f); // Use 40% of height for waveform range
 
             // Calculate X position - direct pixel mapping like GDI+
@@ -365,13 +371,22 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         if (ImGui.SliderFloat("Line Thickness", ref lineThickness, 1.0f, 10.0f))
             _config.LineThickness = lineThickness;
 
-        bool reverse = _config.Reverse;
-        if (ImGui.Checkbox("Reverse Waveform", ref reverse))
-            _config.Reverse = reverse;
+        bool flipV = _config.FlipV;
+        if (ImGui.Checkbox("Flip Waveform Vertically", ref flipV))
+            _config.FlipV = flipV;
 
         if (ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip("Reverses the waveform horizontally (mirror effect).");
+            ImGui.SetTooltip("Flips the waveform vertically (left <-> right).");
+        }
+
+        bool flipH = _config.FlipH;
+        if (ImGui.Checkbox("Flip Waveform Horizontally", ref flipH))
+            _config.FlipH = flipH;
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Flips the waveform horizontally (up <-> down).");
         }
 
         ImGui.Spacing();
