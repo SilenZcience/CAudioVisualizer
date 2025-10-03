@@ -6,18 +6,11 @@ using CAudioVisualizer.Core;
 
 namespace CAudioVisualizer.Visualizers;
 
-public struct CircleDot
-{
-    public Vector3 Position;
-    public Vector3 Color;
-    public float Size;
-}
-
 public struct CircleFrame
 {
     public List<Vector3> DotPositions;
     public Vector3 Color;
-    public float Brightness;
+    public float Alpha;
     public float DotSize;
 }
 
@@ -92,11 +85,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         string vertexShaderSource = @"
             #version 460 core
             layout (location = 0) in vec3 aPosition;
-            layout (location = 1) in vec3 aColor;
+            layout (location = 1) in vec4 aColor;
 
             uniform mat4 projection;
             uniform float pointSize;
-            out vec3 vertexColor;
+            out vec4 vertexColor;
 
             void main()
             {
@@ -108,7 +101,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         string fragmentShaderSource = @"
             #version 460 core
 
-            in vec3 vertexColor;
+            in vec4 vertexColor;
             out vec4 FragColor;
 
             void main()
@@ -117,7 +110,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
                 vec2 coord = gl_PointCoord - vec2(0.5);
                 if (length(coord) > 0.5)
                     discard;
-                FragColor = vec4(vertexColor, 1.0);
+                FragColor = vertexColor;
             }";
 
         int vertexShader = GL.CreateShader(ShaderType.VertexShader);
@@ -149,11 +142,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
 
         // Position attribute
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
 
-        // Color attribute
-        GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+        // Color attribute (RGBA)
+        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 7 * sizeof(float), 3 * sizeof(float));
         GL.EnableVertexAttribArray(1);
     }
 
@@ -218,13 +211,14 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
         foreach (var dotPos in circleFrame.DotPositions)
         {
-            // Add vertex: position (x, y, z) + color (r, g, b)
+            // Add vertex: position (x, y, z) + color (r, g, b, a)
             _vertexBuffer.Add(dotPos.X);
             _vertexBuffer.Add(dotPos.Y);
             _vertexBuffer.Add(dotPos.Z);
             _vertexBuffer.Add(circleFrame.Color.X);
             _vertexBuffer.Add(circleFrame.Color.Y);
             _vertexBuffer.Add(circleFrame.Color.Z);
+            _vertexBuffer.Add(circleFrame.Alpha);
         }
 
         return _vertexBuffer;
@@ -242,10 +236,10 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
-            frame.Brightness *= _config.FadeSpeed;
+            frame.Alpha *= _config.FadeSpeed;
 
-            // Remove circles that are too dim or exceed trail length
-            if (frame.Brightness < 0.01f || i >= _config.TrailLength)
+            // Remove circles that are too transparent or exceed trail length
+            if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
                 _trailFrames.RemoveAt(i);
             }
@@ -269,7 +263,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             {
                 DotPositions = dotPositions,
                 Color = _config.Color,
-                Brightness = 1.0f,
+                Alpha = 1.0f,
                 DotSize = _config.DotSize
             };
 
@@ -332,13 +326,16 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         {
             DotPositions = dotPositions,
             Color = color,
-            Brightness = 1.0f,
+            Alpha = 1.0f,
             DotSize = _config.DotSize
         };
     }
 
     private void RenderTrailFrames()
     {
+        GL.Enable(EnableCap.Blend);
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
         GL.BindVertexArray(_vertexArrayObject);
         GL.Enable(EnableCap.ProgramPointSize);
 
@@ -347,18 +344,18 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         {
             var frame = _trailFrames[i];
 
-            // Create vertex data with faded color using reusable buffer
+            // Create vertex data with alpha transparency using reusable buffer
             _tempVertexBuffer.Clear();
-            Vector3 fadedColor = frame.Color * frame.Brightness;
 
             foreach (var dotPos in frame.DotPositions)
             {
                 _tempVertexBuffer.Add(dotPos.X);
                 _tempVertexBuffer.Add(dotPos.Y);
                 _tempVertexBuffer.Add(dotPos.Z);
-                _tempVertexBuffer.Add(fadedColor.X);
-                _tempVertexBuffer.Add(fadedColor.Y);
-                _tempVertexBuffer.Add(fadedColor.Z);
+                _tempVertexBuffer.Add(frame.Color.X);
+                _tempVertexBuffer.Add(frame.Color.Y);
+                _tempVertexBuffer.Add(frame.Color.Z);
+                _tempVertexBuffer.Add(frame.Alpha); // Use alpha for transparency
             }
 
             if (_tempVertexBuffer.Count == 0) continue;
@@ -371,10 +368,12 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
             // Draw points
-            GL.DrawArrays(PrimitiveType.Points, 0, _tempVertexBuffer.Count / 6);
+            GL.DrawArrays(PrimitiveType.Points, 0, _tempVertexBuffer.Count / 7);
         }
 
         GL.Disable(EnableCap.ProgramPointSize);
+
+        GL.Disable(EnableCap.Blend);
     }
 
     public void RenderConfigGui()

@@ -10,7 +10,7 @@ public struct WaveformFrame
 {
     public List<float> Vertices;
     public Vector3 Color;
-    public float Brightness;
+    public float Alpha;
     public float LineWidth;
 }
 
@@ -78,10 +78,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         string vertexShaderSource = @"
             #version 330 core
             layout(location = 0) in vec3 aPosition;
-            layout(location = 1) in vec3 aColor;
+            layout(location = 1) in vec4 aColor;
 
             uniform mat4 projection;
-            out vec3 vertexColor;
+            out vec4 vertexColor;
 
             void main()
             {
@@ -92,12 +92,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         string fragmentShaderSource = @"
             #version 330 core
 
-            in vec3 vertexColor;
+            in vec4 vertexColor;
             out vec4 FragColor;
 
             void main()
             {
-                FragColor = vec4(vertexColor, 1.0);
+                FragColor = vertexColor;
             }";
 
         // Create and compile shaders
@@ -132,11 +132,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
 
         // Position attribute
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
 
-        // Color attribute
-        GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+        // Color attribute (RGBA)
+        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 7 * sizeof(float), 3 * sizeof(float));
         GL.EnableVertexAttribArray(1);
     }
 
@@ -183,14 +183,14 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Add current waveform to trail
         _trailFrames.Insert(0, currentWaveform);
 
-        // Update brightness of existing frames and remove old ones
+        // Update alpha of existing frames and remove old ones
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
-            frame.Brightness *= _config.FadeSpeed;
+            frame.Alpha *= _config.FadeSpeed;
 
-            // Remove frames that are too dim or exceed trail length
-            if (frame.Brightness < 0.01f || i >= _config.TrailLength)
+            // Remove frames that are too transparent or exceed trail length
+            if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
                 _trailFrames.RemoveAt(i);
             }
@@ -203,6 +203,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
     private void RenderTrailFrames()
     {
+        GL.Enable(EnableCap.Blend);
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
         GL.BindVertexArray(_vertexArrayObject);
 
         // Render trail frames from oldest to newest (so newest appears on top)
@@ -211,11 +214,13 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             var frame = _trailFrames[i];
             if (frame.Vertices.Count == 0) continue;
 
-            // Apply brightness to vertices
-            var fadedVertices = ApplyBrightnessToVertices(frame.Vertices, frame.Brightness);
+            // Apply alpha to vertices
+            var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
 
             RenderWaveform(fadedVertices, frame.LineWidth);
         }
+
+        GL.Disable(EnableCap.Blend);
     }
 
     private WaveformFrame GenerateCurrentWaveform(Vector2i windowSize)
@@ -229,7 +234,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             {
                 Vertices = new List<float>(),
                 Color = _config.Color,
-                Brightness = 1.0f,
+                Alpha = 1.0f,
                 LineWidth = _config.LineThickness
             };
         }
@@ -248,7 +253,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             {
                 Vertices = new List<float>(),
                 Color = _config.Color,
-                Brightness = 1.0f,
+                Alpha = 1.0f,
                 LineWidth = _config.LineThickness
             };
         }
@@ -262,12 +267,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             {
                 Vertices = new List<float>(),
                 Color = _config.Color,
-                Brightness = 1.0f,
+                Alpha = 1.0f,
                 LineWidth = _config.LineThickness
             };
         }
 
-        var vertexBuffer = new List<float>(waveformWidth * 6);
+        var vertexBuffer = new List<float>(waveformWidth * 7);
 
         // Get current color
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
@@ -295,25 +300,26 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Calculate X position - direct pixel mapping like GDI+
             float pixelX = startPixel + x;
 
-            // Add vertex (position + color)
+            // Add vertex (position + color with alpha)
             vertexBuffer.Add(pixelX);           // X
             vertexBuffer.Add(y);                // Y
             vertexBuffer.Add(0.0f);             // Z
             vertexBuffer.Add(color.X);          // R
             vertexBuffer.Add(color.Y);          // G
             vertexBuffer.Add(color.Z);          // B
+            vertexBuffer.Add(1.0f);             // A
         }
 
         return new WaveformFrame
         {
             Vertices = vertexBuffer,
             Color = color,
-            Brightness = 1.0f,
+            Alpha = 1.0f,
             LineWidth = _config.LineThickness
         };
     }
 
-    private List<float> ApplyBrightnessToVertices(List<float> vertices, float brightness)
+    private List<float> ApplyAlphaToVertices(List<float> vertices, float alpha)
     {
         _tempVertexBuffer.Clear();
         if (_tempVertexBuffer.Capacity < vertices.Count)
@@ -321,12 +327,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         _tempVertexBuffer.AddRange(vertices);
 
-        // Apply brightness to color components only (every 4th, 5th, and 6th float are RGB)
-        for (int i = 3; i < _tempVertexBuffer.Count; i += 6)
+        // Apply alpha to alpha component only (every 7th float is alpha)
+        for (int i = 6; i < _tempVertexBuffer.Count; i += 7)
         {
-            _tempVertexBuffer[i] *= brightness;     // R
-            _tempVertexBuffer[i + 1] *= brightness; // G
-            _tempVertexBuffer[i + 2] *= brightness; // B
+            _tempVertexBuffer[i] = alpha; // A
         }
 
         return _tempVertexBuffer;
@@ -351,7 +355,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
 
         // Draw waveform as line strip
-        GL.DrawArrays(PrimitiveType.LineStrip, 0, vertices.Count / 6); // 6 floats per vertex (3 pos + 3 color)
+        GL.DrawArrays(PrimitiveType.LineStrip, 0, vertices.Count / 7); // 7 floats per vertex (3 pos + 4 color)
 
         // // Reset line width and disable smoothing
         // GL.LineWidth(1.0f);

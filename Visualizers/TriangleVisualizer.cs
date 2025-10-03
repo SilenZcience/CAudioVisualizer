@@ -10,7 +10,7 @@ public struct TriangleFrame
 {
     public Vector3[] Vertices;
     public Vector3 Color;
-    public float Brightness;
+    public float Alpha;
     public bool Filled;
     public float LineWidth;
 }
@@ -82,10 +82,10 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         string vertexShaderSource = @"
             #version 460 core
             layout (location = 0) in vec3 aPosition;
-            layout (location = 1) in vec3 aColor;
+            layout (location = 1) in vec4 aColor;
 
             uniform mat4 projection;
-            out vec3 vertexColor;
+            out vec4 vertexColor;
 
             void main()
             {
@@ -95,12 +95,12 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         string fragmentShaderSource = @"
             #version 460 core
-            in vec3 vertexColor;
+            in vec4 vertexColor;
             out vec4 FragColor;
 
             void main()
             {
-                FragColor = vec4(vertexColor, 1.0);
+                FragColor = vertexColor;
             }";
 
         int vertexShader = GL.CreateShader(ShaderType.VertexShader);
@@ -131,11 +131,11 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
 
         // Position attribute
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), 0);
         GL.EnableVertexAttribArray(0);
 
-        // Color attribute
-        GL.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 6 * sizeof(float), 3 * sizeof(float));
+        // Color attribute (RGBA)
+        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 7 * sizeof(float), 3 * sizeof(float));
         GL.EnableVertexAttribArray(1);
     }
 
@@ -208,10 +208,10 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
-            frame.Brightness *= _config.FadeSpeed;
+            frame.Alpha *= _config.FadeSpeed;
 
-            // Remove triangles that are too dim or exceed trail length
-            if (frame.Brightness < 0.01f || i >= _config.TrailLength)
+            // Remove triangles that are too transparent or exceed trail length
+            if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
                 _trailFrames.RemoveAt(i);
             }
@@ -224,6 +224,9 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private void RenderTrailFrames()
     {
+        GL.Enable(EnableCap.Blend);
+        GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+
         GL.BindVertexArray(_vertexArrayObject);
 
         // Draw triangles in reverse order (oldest first, newest last)
@@ -231,18 +234,18 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             var frame = _trailFrames[i];
 
-            // Create vertex data with faded color using reusable buffer
+            // Create vertex data with alpha transparency using reusable buffer
             _tempVertexBuffer.Clear();
-            Vector3 fadedColor = frame.Color * frame.Brightness;
 
             for (int j = 0; j < 3; j++)
             {
                 _tempVertexBuffer.Add(frame.Vertices[j].X);
                 _tempVertexBuffer.Add(frame.Vertices[j].Y);
                 _tempVertexBuffer.Add(frame.Vertices[j].Z);
-                _tempVertexBuffer.Add(fadedColor.X);
-                _tempVertexBuffer.Add(fadedColor.Y);
-                _tempVertexBuffer.Add(fadedColor.Z);
+                _tempVertexBuffer.Add(frame.Color.X);
+                _tempVertexBuffer.Add(frame.Color.Y);
+                _tempVertexBuffer.Add(frame.Color.Z);
+                _tempVertexBuffer.Add(frame.Alpha); // Use alpha for transparency
             }
 
             // Upload and draw
@@ -260,6 +263,8 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
                 GL.DrawArrays(PrimitiveType.LineLoop, 0, 3);
             }
         }
+
+        GL.Disable(EnableCap.Blend);
     }
 
     private List<float> GenerateTriangleVertices(Vector2i windowSize)
@@ -270,13 +275,14 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         for (int i = 0; i < 3; i++)
         {
-            // Add vertex: position (x, y, z) + color (r, g, b)
+            // Add vertex: position (x, y, z) + color (r, g, b, a)
             _vertexBuffer.Add(triangleFrame.Vertices[i].X);
             _vertexBuffer.Add(triangleFrame.Vertices[i].Y);
             _vertexBuffer.Add(triangleFrame.Vertices[i].Z);
             _vertexBuffer.Add(triangleFrame.Color.X);
             _vertexBuffer.Add(triangleFrame.Color.Y);
             _vertexBuffer.Add(triangleFrame.Color.Z);
+            _vertexBuffer.Add(triangleFrame.Alpha);
         }
 
         return _vertexBuffer;
@@ -336,7 +342,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             Vertices = vertices,
             Color = color,
-            Brightness = 1.0f,
+            Alpha = 1.0f,
             Filled = _config.Filled,
             LineWidth = _config.LineThickness
         };
