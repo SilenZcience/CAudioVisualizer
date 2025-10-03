@@ -52,6 +52,7 @@
       </li>
       <li><a href="#usage">Usage</a>
          <ul>
+         <li><a href="#features">Features</a></li>
          <li><a href="#examples">Examples</a></li>
          </ul>
       </li>
@@ -115,10 +116,17 @@ Feel free to explore the code, contribute, or request new features!
 
 ### Prerequisites
 
-Using CAudioVisualizer as a `standalone executable` demands no prerequisites. </br>
-When using the `framework-dependent` executable however .NET 9.0 needs to be installed on the system.
+### Self-Contained Version (win-x64 and win-x86)
+- **Operating System**: Windows 10/11 (x64 or x86)
+- **Memory**: 500MB RAM minimum
+- **Graphics**: DirectX 11 compatible graphics card
+- **Audio**: Windows audio device (speakers/headphones)
+- **Disk Space**: ~200MB
 
-Using CAudioVisualizer as an `installable application` demands no prerequisites aswell.
+### Framework-Dependent Version
+- **All above requirements PLUS:**
+- **.NET Runtime**: .NET 9.0 Desktop Runtime
+  - Download from: https://dotnet.microsoft.com/download/dotnet/9.0
 
 <div id="installation"></div>
 
@@ -155,6 +163,17 @@ All executable files can be directly *downloaded* via the [github releases](http
 
 Simply run the executable/application. </br>
 Use the hotkey `F3` to open the config menu.
+
+<div id="features"></div>
+
+### Features
+
+- **Real-time Audio Visualization**: Multiple visualization modes
+- **FFT Support**: Toggle between time-domain and frequency-domain visualizations
+- **Customizable**: Extensive configuration options for colors, sizes, positions, and effects
+- **Multiple Monitors**: Support for multi-monitor setups
+- **Fade Trail Effects**: Beautiful trailing effects for enhanced visualization
+- **Configuration Persistence**: Save and load your preferred settings (%appdata%/CAudioVisualizer/)
 
 <div id="examples"></div>
 
