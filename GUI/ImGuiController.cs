@@ -23,6 +23,8 @@ public class ImGuiController : IDisposable
     private int _windowHeight;
     private System.Numerics.Vector2 _scaleFactor = System.Numerics.Vector2.One;
 
+    private readonly Dictionary<Keys, ImGuiKey> _keyMap = new();
+
     public ImGuiController(int width, int height)
     {
         _windowWidth = width;
@@ -34,6 +36,11 @@ public class ImGuiController : IDisposable
         var io = ImGui.GetIO();
         io.Fonts.AddFontDefault();
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
+        // Enable keyboard navigation
+        io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
+
+        // Initialize key mapping
+        InitializeKeyMap();
 
         // Load ImGui settings from user directory if it exists
         var imguiConfigPath = CAudioVisualizer.Configuration.AppConfig.GetImGuiConfigPath();
@@ -46,6 +53,21 @@ public class ImGuiController : IDisposable
         SetPerFrameImGuiData(1f / 60f);
         ImGui.NewFrame();
         _frameBegun = true;
+    }
+
+    private void InitializeKeyMap()
+    {
+        // Navigation keys
+        _keyMap[Keys.Tab] = ImGuiKey.Tab;
+        _keyMap[Keys.Left] = ImGuiKey.LeftArrow;
+        _keyMap[Keys.Right] = ImGuiKey.RightArrow;
+        _keyMap[Keys.Up] = ImGuiKey.UpArrow;
+        _keyMap[Keys.Down] = ImGuiKey.DownArrow;
+        // Editing keys
+        _keyMap[Keys.Delete] = ImGuiKey.Delete;
+        _keyMap[Keys.Backspace] = ImGuiKey.Backspace;
+        _keyMap[Keys.Space] = ImGuiKey.Space;
+        _keyMap[Keys.Enter] = ImGuiKey.Enter;
     }
 
     public void WindowResized(int width, int height)
@@ -192,11 +214,16 @@ void main()
         var screenPoint = new Vector2i((int)mouseState.X, (int)mouseState.Y);
         io.MousePos = new System.Numerics.Vector2(screenPoint.X, screenPoint.Y);
 
-        // Simple key handling - just a few essential keys
+        // Handle modifier keys
         io.KeyCtrl = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
         io.KeyAlt = keyboardState.IsKeyDown(Keys.LeftAlt) || keyboardState.IsKeyDown(Keys.RightAlt);
         io.KeyShift = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
         io.KeySuper = keyboardState.IsKeyDown(Keys.LeftSuper) || keyboardState.IsKeyDown(Keys.RightSuper);
+        foreach (var kvp in _keyMap)
+        {
+            bool isDown = keyboardState.IsKeyDown(kvp.Key);
+            io.AddKeyEvent(kvp.Value, isDown);
+        }
     }
 
     internal void PressChar(char keyChar)
