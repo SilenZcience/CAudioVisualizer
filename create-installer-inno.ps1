@@ -42,10 +42,16 @@ Write-Host "`nCreating Inno Setup installer..." -ForegroundColor Yellow
 
 # Ensure config files are available for installer
 $configSource = ".\config.json"
+$readmeSource = ".\README.md"
 
 if (Test-Path $configSource) {
     Copy-Item $configSource "$sourceDir\config.json" -Force
     Write-Host "Made config.json available for installer" -ForegroundColor Cyan
+}
+
+if (Test-Path $readmeSource) {
+    Copy-Item $readmeSource "$sourceDir\README.md" -Force
+    Write-Host "Made README.md available for installer" -ForegroundColor Cyan
 }
 
 # Create Inno Setup script
@@ -76,6 +82,9 @@ VersionInfoVersion=$Version.0
 VersionInfoCompany=Silas Kraume
 VersionInfoDescription=Audio Visualizer
 VersionInfoProductName=CAudioVisualizer
+; 64-bit installer configuration
+ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
