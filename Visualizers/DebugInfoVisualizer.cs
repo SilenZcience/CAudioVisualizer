@@ -19,8 +19,6 @@ public class DebugInfoConfig
 
 public class DebugInfoVisualizer : IVisualizer, IConfigurable
 {
-    public string Name => "Debug";
-    public string DisplayName => "Debug Info";
     public bool IsEnabled { get; set; } = true;
 
     private DebugInfoConfig _config = new();
@@ -102,7 +100,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    public void Render(Matrix4 projection, Vector2i windowSize)
+    public void Render(Matrix4 projection)
     {
         if (!IsEnabled || !_config.Enabled) return;
 
@@ -261,7 +259,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to save Debug config: {ex.Message}");
             return "{}";
         }
     }
@@ -280,7 +278,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to load Debug config: {ex.Message}");
         }
     }
 

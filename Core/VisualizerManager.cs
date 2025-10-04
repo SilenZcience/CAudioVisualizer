@@ -8,6 +8,7 @@ public class VisualizerManager : IDisposable
 {
     private readonly Dictionary<string, VisualizerInstance> _instances = new();
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
+    private BackgroundRenderer? _backgroundRenderer;
 
     public void RegisterVisualizerInstance(VisualizerInstance instance)
     {
@@ -45,6 +46,8 @@ public class VisualizerManager : IDisposable
 
     public void UpdateVisualizers(float[] waveformData, float[] fftData, double deltaTime)
     {
+        _backgroundRenderer?.Update(waveformData, fftData, deltaTime);
+
         foreach (var instance in _instances.Values)
         {
             if (instance.Visualizer.IsEnabled)
@@ -59,11 +62,13 @@ public class VisualizerManager : IDisposable
         // Update current window size for all visualizers to reference
         _currentWindowSize = windowSize;
 
+        _backgroundRenderer?.Render(projection);
+
         foreach (var instance in _instances.Values)
         {
             if (instance.Visualizer.IsEnabled)
             {
-                instance.Visualizer.Render(projection, windowSize);
+                instance.Visualizer.Render(projection);
             }
         }
     }
@@ -71,6 +76,11 @@ public class VisualizerManager : IDisposable
     public Vector2i GetCurrentWindowSize()
     {
         return _currentWindowSize;
+    }
+
+    public BackgroundRenderer? GetBackgroundRenderer()
+    {
+        return _backgroundRenderer;
     }
 
     public Dictionary<string, VisualizerInstance> GetAllInstances()
@@ -95,6 +105,11 @@ public class VisualizerManager : IDisposable
     {
         configs.Clear();
         enabledVisualizers.Clear();
+
+        if (_backgroundRenderer != null)
+        {
+            configs["Background"] = _backgroundRenderer.SaveConfiguration();
+        }
 
         foreach (var kvp in _instances)
         {
@@ -123,9 +138,21 @@ public class VisualizerManager : IDisposable
 
     public void LoadVisualizerConfigurations(Dictionary<string, string> configs, List<string> enabledVisualizers)
     {
-        // Recreate instances from configuration keys
+        // Initialize background renderer
+        _backgroundRenderer = new BackgroundRenderer();
+        _backgroundRenderer.SetVisualizerManager(this);
+        _backgroundRenderer.Initialize();
+
+        if (configs.TryGetValue("Background", out var backgroundConfig))
+        {
+            _backgroundRenderer.LoadConfiguration(backgroundConfig);
+        }
+
+        // Recreate instances from configuration keys (skip "Background" key)
         foreach (var instanceId in configs.Keys)
         {
+            if (instanceId == "Background") continue;
+
             if (!_instances.ContainsKey(instanceId))
             {
                 var instance = CreateInstanceFromId(instanceId);
@@ -204,6 +231,8 @@ public class VisualizerManager : IDisposable
             instance.Visualizer.Dispose();
         }
         _instances.Clear();
+
+        _backgroundRenderer?.Dispose();
 
         GC.SuppressFinalize(this);
     }

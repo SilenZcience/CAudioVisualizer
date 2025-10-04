@@ -35,8 +35,6 @@ public class CircleConfig
 
 public class CircleVisualizer : IVisualizer, IConfigurable
 {
-    public string Name => "Circle";
-    public string DisplayName => "Circle";
     public bool IsEnabled
     {
         get => _config.Enabled;
@@ -156,9 +154,11 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         _fftData = fftData;
     }
 
-    public void Render(Matrix4 projection, Vector2i windowSize)
+    public void Render(Matrix4 projection)
     {
         if (!IsEnabled || !_initialized) return;
+
+        var windowSize = CurrentWindowSize;
 
         // Initialize position to center if not set yet
         if (_config.PositionX == -1)
@@ -197,7 +197,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             GL.Enable(EnableCap.ProgramPointSize);
 
             // Draw points
-            GL.DrawArrays(PrimitiveType.Points, 0, vertices.Count / 6);
+            GL.DrawArrays(PrimitiveType.Points, 0, vertices.Count / 7);
 
             GL.Disable(EnableCap.ProgramPointSize);
         }
@@ -498,7 +498,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to save Circle config: {ex.Message}");
             return "{}";
         }
     }
@@ -519,7 +519,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to load Circle config: {ex.Message}");
         }
     }
 

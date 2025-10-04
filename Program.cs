@@ -209,11 +209,9 @@ public class AudioVisualizerWindow : GameWindow
 
         _imGuiController.Update(this, (float)e.Time);
 
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
         var projection = Matrix4.CreateOrthographicOffCenter(0, ClientSize.X, ClientSize.Y, 0, -1, 1);
 
-        // Update and render all visualizers
+        // Update and render all visualizers (including background)
         _visualizerManager.UpdateVisualizers(_waveformData, _fftData, e.Time);
         _visualizerManager.RenderVisualizers(projection, ClientSize);
 

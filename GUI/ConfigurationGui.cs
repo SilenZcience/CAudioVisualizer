@@ -38,6 +38,7 @@ public class ConfigurationGui
             if (ImGui.BeginTabBar("ConfigTabs"))
             {
                 RenderApplicationTab();
+                RenderBackgroundTab();
                 RenderVisualizerTabs();
 
                 ImGui.EndTabBar();
@@ -250,6 +251,23 @@ public class ConfigurationGui
         }
     }
 
+    private void RenderBackgroundTab()
+    {
+        if (ImGui.BeginTabItem("Background"))
+        {
+            var backgroundRenderer = _visualizerManager.GetBackgroundRenderer();
+            if (backgroundRenderer != null)
+            {
+                backgroundRenderer.RenderConfigGui();
+            }
+            else
+            {
+                ImGui.Text("Background renderer not available");
+            }
+            ImGui.EndTabItem();
+        }
+    }
+
 
     private void RenderVisualizerTabs()
     {
@@ -295,8 +313,9 @@ public class ConfigurationGui
 
         foreach (var instance in instances.Values)
         {
-            ImGui.BulletText($"{instance.DisplayName} ({instance.TypeName}) - {(instance.Visualizer.IsEnabled ? "Enabled" : "Disabled")}");
+            ImGui.BulletText($"{instance.DisplayName} - {(instance.Visualizer.IsEnabled ? "Enabled" : "Disabled")}");
             ImGui.SameLine();
+            ImGui.SetCursorPosX(190);
 
             if (ImGui.SmallButton($"Remove##{instance.InstanceId}"))
             {

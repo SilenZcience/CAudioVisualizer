@@ -38,8 +38,6 @@ public class TriangleConfig
 
 public class TriangleVisualizer : IVisualizer, IConfigurable
 {
-    public string Name => "Triangle";
-    public string DisplayName => "Triangle";
     public bool IsEnabled
     {
         get => _config.Enabled;
@@ -150,9 +148,11 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         if (_currentRotation < 0.0f) _currentRotation += 360.0f;
     }
 
-    public void Render(Matrix4 projection, Vector2i windowSize)
+    public void Render(Matrix4 projection)
     {
         if (!IsEnabled || !_initialized) return;
+
+        var windowSize = CurrentWindowSize;
 
         // Initialize position to center if not set yet
         if (_config.PositionX == -1)
@@ -484,7 +484,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to save Triangle config: {ex.Message}");
             return "{}";
         }
     }
@@ -505,7 +505,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to load Triangle config: {ex.Message}");
         }
     }
 

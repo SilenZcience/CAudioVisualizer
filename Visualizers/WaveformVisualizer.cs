@@ -36,8 +36,6 @@ public class WaveformConfig
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
 {
-    public string Name => "Waveform";
-    public string DisplayName => "Waveform";
     public bool IsEnabled
     {
         get => _config.Enabled;
@@ -146,9 +144,11 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         _fftData = fftData;
     }
 
-    public void Render(Matrix4 projection, Vector2i windowSize)
+    public void Render(Matrix4 projection)
     {
         if (!IsEnabled || !_initialized) return;
+
+        var windowSize = CurrentWindowSize;
 
         // Initialize positions if not set yet
         if (_config.PositionY == -1)
@@ -500,7 +500,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to save {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to save Waveform config: {ex.Message}");
             return "{}";
         }
     }
@@ -521,7 +521,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load {Name} config: {ex.Message}");
+            Console.WriteLine($"Failed to load Waveform config: {ex.Message}");
         }
     }
 
