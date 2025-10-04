@@ -39,7 +39,7 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
     private int _gradientTypeLocation;
     private bool _initialized = false;
     private VisualizerManager? _visualizerManager;
-    
+
     // Cached render state to avoid redundant GL calls
     private Vector2i _lastWindowSize = new(-1, -1);
     private BackgroundMode _lastMode = (BackgroundMode)(-1);
@@ -105,51 +105,6 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
                 return noise;
             }
 
-            // Convert RGB to HSV
-            vec3 rgb2hsv(vec3 c) {
-                vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-                vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-                vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-
-                float d = q.x - min(q.w, q.y);
-                float e = 1.0e-10;
-                return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-            }
-
-            // Convert HSV to RGB
-            vec3 hsv2rgb(vec3 c) {
-                vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-                return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-            }
-
-            // HSV gradient interpolation for smoother color transitions
-            vec3 hsvGradient(vec3 color1, vec3 color2, float t) {
-                // Convert RGB to HSV
-                vec3 hsv1 = rgb2hsv(color1);
-                vec3 hsv2 = rgb2hsv(color2);
-
-                // Handle hue wraparound for shortest path
-                float hue_diff = hsv2.x - hsv1.x;
-                if (hue_diff > 0.5) {
-                    hsv2.x -= 1.0;
-                } else if (hue_diff < -0.5) {
-                    hsv2.x += 1.0;
-                }
-
-                // Use smooth interpolation
-                float smoothed = smoothstep(0.0, 1.0, t);
-
-                // Interpolate in HSV space
-                vec3 hsv_result = mix(hsv1, hsv2, smoothed);
-
-                // Wrap hue back to [0, 1]
-                hsv_result.x = fract(hsv_result.x);
-
-                // Convert back to RGB
-                return hsv2rgb(hsv_result);
-            }
-
             void main()
             {
                 vec2 uv = gl_FragCoord.xy / u_resolution;
@@ -187,9 +142,10 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
                     float spatialDither = fract(dot(gl_FragCoord.xy, vec2(0.1547, 0.2847))) - 0.5;
                     dither += spatialDither * (2.0 / 255.0);
 
-                    // Use HSV gradient interpolation with enhanced precision
+                    // Use smooth RGB interpolation with dithering
                     float finalGradient = clamp(gradient + dither, 0.0, 1.0);
-                    color = hsvGradient(u_color1, u_color2, finalGradient);
+                    float smoothed = smoothstep(0.0, 1.0, finalGradient);
+                    color = mix(u_color1, u_color2, smoothed);
                 }
 
                 FragColor = vec4(color, 1.0);
@@ -278,25 +234,25 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             GL.Uniform2(_resolutionLocation, (float)windowSize.X, (float)windowSize.Y);
             _lastWindowSize = windowSize;
         }
-        
+
         if (_lastColor1 != _config.Color1)
         {
             GL.Uniform3(_color1Location, _config.Color1);
             _lastColor1 = _config.Color1;
         }
-        
+
         if (_lastColor2 != _config.Color2)
         {
             GL.Uniform3(_color2Location, _config.Color2);
             _lastColor2 = _config.Color2;
         }
-        
+
         if (_lastMode != _config.Mode)
         {
             GL.Uniform1(_modeLocation, (int)_config.Mode);
             _lastMode = _config.Mode;
         }
-        
+
         if (_lastGradientType != _config.GradientType)
         {
             GL.Uniform1(_gradientTypeLocation, (int)_config.GradientType);
