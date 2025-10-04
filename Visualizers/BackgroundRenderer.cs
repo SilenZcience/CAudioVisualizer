@@ -33,14 +33,19 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
 
     private BackgroundConfig _config = new();
     private int _shaderProgram;
-    private int _vao, _vbo;
+    private int _vao, _vbo, _ebo;
     private int _resolutionLocation, _modeLocation;
     private int _color1Location, _color2Location;
     private int _gradientTypeLocation;
     private bool _initialized = false;
     private VisualizerManager? _visualizerManager;
-    private float[] _waveformData = Array.Empty<float>();
-    private float[] _fftData = Array.Empty<float>();
+    
+    // Cached render state to avoid redundant GL calls
+    private Vector2i _lastWindowSize = new(-1, -1);
+    private BackgroundMode _lastMode = (BackgroundMode)(-1);
+    private GradientType _lastGradientType = (GradientType)(-1);
+    private Vector3 _lastColor1 = new(-1);
+    private Vector3 _lastColor2 = new(-1);
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -234,14 +239,14 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
 
         _vao = GL.GenVertexArray();
         _vbo = GL.GenBuffer();
-        int ebo = GL.GenBuffer();
+        _ebo = GL.GenBuffer();
 
         GL.BindVertexArray(_vao);
 
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
         GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StaticDraw);
 
-        GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
+        GL.BindBuffer(BufferTarget.ElementArrayBuffer, _ebo);
         GL.BufferData(BufferTarget.ElementArrayBuffer, indices.Length * sizeof(uint), indices, BufferUsageHint.StaticDraw);
 
         GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 2 * sizeof(float), 0);
@@ -252,8 +257,7 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
 
     public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
-        // _waveformData = waveformData;
-        // _fftData = fftData;
+        // Background doesn't use audio data
     }
 
     public void Render(Matrix4 projection)
@@ -262,19 +266,42 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
 
         var windowSize = CurrentWindowSize;
 
-        // Clear with a base color first
-        GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // Clear screen (always needed)
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
         // Use shader program
         GL.UseProgram(_shaderProgram);
 
-        // Set uniforms
-        GL.Uniform2(_resolutionLocation, (float)windowSize.X, (float)windowSize.Y);
-        GL.Uniform3(_color1Location, _config.Color1);
-        GL.Uniform3(_color2Location, _config.Color2);
-        GL.Uniform1(_modeLocation, (int)_config.Mode);
-        GL.Uniform1(_gradientTypeLocation, (int)_config.GradientType);
+        // Only update uniforms if values have changed
+        if (_lastWindowSize != windowSize)
+        {
+            GL.Uniform2(_resolutionLocation, (float)windowSize.X, (float)windowSize.Y);
+            _lastWindowSize = windowSize;
+        }
+        
+        if (_lastColor1 != _config.Color1)
+        {
+            GL.Uniform3(_color1Location, _config.Color1);
+            _lastColor1 = _config.Color1;
+        }
+        
+        if (_lastColor2 != _config.Color2)
+        {
+            GL.Uniform3(_color2Location, _config.Color2);
+            _lastColor2 = _config.Color2;
+        }
+        
+        if (_lastMode != _config.Mode)
+        {
+            GL.Uniform1(_modeLocation, (int)_config.Mode);
+            _lastMode = _config.Mode;
+        }
+        
+        if (_lastGradientType != _config.GradientType)
+        {
+            GL.Uniform1(_gradientTypeLocation, (int)_config.GradientType);
+            _lastGradientType = _config.GradientType;
+        }
 
         // Render fullscreen quad
         GL.BindVertexArray(_vao);
@@ -290,6 +317,7 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
         {
             GL.DeleteVertexArray(_vao);
             GL.DeleteBuffer(_vbo);
+            GL.DeleteBuffer(_ebo);
             GL.DeleteProgram(_shaderProgram);
         }
     }
@@ -381,6 +409,11 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             if (config != null)
             {
                 _config = config;
+                // Reset cached state to force uniform updates
+                _lastMode = (BackgroundMode)(-1);
+                _lastGradientType = (GradientType)(-1);
+                _lastColor1 = new(-1);
+                _lastColor2 = new(-1);
             }
         }
         catch (Exception ex)
@@ -392,5 +425,10 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
     public void ResetToDefaults()
     {
         _config = new BackgroundConfig();
+        // Reset cached state to force uniform updates
+        _lastMode = (BackgroundMode)(-1);
+        _lastGradientType = (GradientType)(-1);
+        _lastColor1 = new(-1);
+        _lastColor2 = new(-1);
     }
 }
