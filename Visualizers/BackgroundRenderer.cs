@@ -2,9 +2,9 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
 using ImGuiNET;
-using CAudioVisualizer.Visualizers;
+using CAudioVisualizer.Core;
 
-namespace CAudioVisualizer.Core;
+namespace CAudioVisualizer.Visualizers;
 
 public enum BackgroundMode
 {
