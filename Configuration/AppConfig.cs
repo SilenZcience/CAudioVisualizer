@@ -7,24 +7,20 @@ public class AppConfig
     public int TargetFPS { get; set; } = 60;
     public bool UnlimitedFPS { get; set; } = false;
     public bool EnableVSync { get; set; } = true;
-    public int SelectedMonitorIndex { get; set; } = 0; // Index of the selected monitor
-    public bool SpanAllMonitors { get; set; } = false; // Whether to span across all monitors
+    public int SelectedMonitorIndex { get; set; } = 0;
+    public bool SpanAllMonitors { get; set; } = false;
 
-    // Audio device settings
-    public string SelectedAudioDeviceId { get; set; } = ""; // Device ID of selected audio device (empty = default)
-    public string SelectedAudioDeviceName { get; set; } = "Default Device"; // Friendly name for UI
+    public string SelectedAudioDeviceId { get; set; } = "";
+    public string SelectedAudioDeviceName { get; set; } = "Default Device";
 
-    // Visualizer settings
     public Dictionary<string, string> VisualizerConfigs { get; set; } = new();
     public List<string> EnabledVisualizers { get; set; } = new();
 
-    // Get the user-specific configuration directory
     private static string GetUserConfigDirectory()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var configDir = Path.Combine(appDataPath, "CAudioVisualizer");
 
-        // Create directory if it doesn't exist
         if (!Directory.Exists(configDir))
         {
             Directory.CreateDirectory(configDir);

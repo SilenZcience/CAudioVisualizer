@@ -194,8 +194,7 @@ public class AudioVisualizerWindow : GameWindow
         // Perform FFT
         Fourier.Forward(_fftBuffer, FourierOptions.Matlab);
         // Extract magnitudes for first half (avoid mirroring)
-        int spectrumSize = BUFFER_SIZE / 2;
-        for (int i = 0; i < spectrumSize; i++)
+        for (int i = 0; i < BUFFER_SIZE / 2; i++)
         {
             _fftData[i] = _fftBuffer[i].Magnitude;
         }
@@ -211,7 +210,7 @@ public class AudioVisualizerWindow : GameWindow
 
         var projection = Matrix4.CreateOrthographicOffCenter(0, ClientSize.X, ClientSize.Y, 0, -1, 1);
 
-        // Update and render all visualizers (including background)
+        // Update and render all visualizers (including background & post-processing)
         _visualizerManager.UpdateVisualizers(_waveformData, _fftData, e.Time);
         _visualizerManager.RenderVisualizers(projection, ClientSize);
 

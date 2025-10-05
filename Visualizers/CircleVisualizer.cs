@@ -17,20 +17,20 @@ public struct CircleFrame
 public class CircleConfig
 {
     public bool Enabled { get; set; } = true;
-    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 1.0f); // Cyan
-    public float CircleSize { get; set; } = 75.0f; // Base radius multiplier
-    public int DotsMin { get; set; } = 300; // Minimum number of dots
-    public int DotsMax { get; set; } = 500; // Maximum number of dots
-    public float DotSize { get; set; } = 2.0f; // Size of individual dots
-    public int PositionX { get; set; } = -1; // X position in pixels (will be set to center on first use)
-    public int PositionY { get; set; } = -1; // Y position in pixels (will be set to center on first use)
-    public float Sensitivity { get; set; } = 1.0f; // Amplitude sensitivity
-    public bool UseTimeColor { get; set; } = false; // Use rainbow colors
-    public bool UseRealTimeColor { get; set; } = false; // Use actual time as RGB
-    public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
-    public float FadeSpeed { get; set; } = 0.95f; // How fast circles fade (0.9 = slow, 0.99 = fast)
-    public int TrailLength { get; set; } = 20; // Maximum number of trail circles
-    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
+    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 1.0f);
+    public float CircleSize { get; set; } = 75.0f;
+    public int DotsMin { get; set; } = 300;
+    public int DotsMax { get; set; } = 500;
+    public float DotSize { get; set; } = 2.0f;
+    public int PositionX { get; set; } = -1;
+    public int PositionY { get; set; } = -1;
+    public float Sensitivity { get; set; } = 1.0f;
+    public bool UseTimeColor { get; set; } = false;
+    public bool UseRealTimeColor { get; set; } = false;
+    public bool EnableFadeTrail { get; set; } = false;
+    public float FadeSpeed { get; set; } = 0.95f;
+    public int TrailLength { get; set; } = 20;
+    public bool UseFFT { get; set; } = false;
 }
 
 public class CircleVisualizer : IVisualizer, IConfigurable
@@ -171,10 +171,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
         if (_config.EnableFadeTrail)
         {
-            // Update trail frames - fade existing ones and add new one
             UpdateTrailFrames(windowSize);
-
-            // Render all trail frames
             RenderTrailFrames();
         }
         else
@@ -205,7 +202,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateCircleDots(Vector2i windowSize)
     {
-        // Generate circle frame and convert to vertex list using reusable buffer
         var circleFrame = GenerateCurrentCircle(windowSize);
         _vertexBuffer.Clear();
 
@@ -226,10 +222,8 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
     private void UpdateTrailFrames(Vector2i windowSize)
     {
-        // Generate current circle
         var currentCircle = GenerateCurrentCircle(windowSize);
 
-        // Add current circle to trail
         _trailFrames.Insert(0, currentCircle);
 
         // Fade existing frames and remove completely faded ones
@@ -238,7 +232,6 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             var frame = _trailFrames[i];
             frame.Alpha *= _config.FadeSpeed;
 
-            // Remove circles that are too transparent or exceed trail length
             if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
                 _trailFrames.RemoveAt(i);
@@ -267,30 +260,26 @@ public class CircleVisualizer : IVisualizer, IConfigurable
                 DotSize = _config.DotSize
             };
 
-        // Calculate center position - exactly like GDI+ version
         float centerX = _config.PositionX;
         float centerY = _config.PositionY;
 
-        // Calculate number of dots (randomized between min and max) - exactly like GDI+ version
         int dots = _random.Next(_config.DotsMin, _config.DotsMax + 1);
         _random = new Random(12345);
 
-        // Make sure dots is even for the two-loop pattern - exactly like GDI+ version
         if (dots % 2 != 0) dots++;
 
-        // Get current color
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
 
-        // First loop: Step by 2, use -PI (upper semicircle) - exactly like GDI+ version
+        // First loop: Step by 2, use -PI (upper semicircle)
         for (int i = 1; i <= dots; i += 2)
         {
-            // Get random audio data point - exactly like GDI+ version with bounds checking
+            // Get random audio data point
             if (dataSource.Length == 0) continue;
             int dataIndex = _random.Next(0, dataSource.Length);
             float fft = Math.Abs(dataSource[dataIndex]);
 
-            // Apply sensitivity and power scaling similar to original (sqrt of sqrt) - exactly like GDI+ version
+            // Apply sensitivity and power scaling similar to original (sqrt of sqrt)
             float rootRootFft = _config.CircleSize * (float)Math.Sqrt(Math.Sqrt(fft * 100000 * _config.Sensitivity));
 
             float iterationByDots = (float)i / dots;
@@ -302,15 +291,15 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             dotPositions.Add(new Vector3(x, y, 0.0f));
         }
 
-        // Second loop: Step by 2, use +PI (lower semicircle) - exactly like GDI+ version
+        // Second loop: Step by 2, use +PI (lower semicircle)
         for (int i = 2; i <= dots; i += 2)
         {
-            // Get random audio data point - exactly like GDI+ version with bounds checking
+            // Get random audio data point
             if (dataSource.Length == 0) continue;
             int dataIndex = _random.Next(0, dataSource.Length);
             float fft = Math.Abs(dataSource[dataIndex]);
 
-            // Apply sensitivity and power scaling - exactly like GDI+ version
+            // Apply sensitivity and power scaling
             float rootRootFft = _config.CircleSize * (float)Math.Sqrt(Math.Sqrt(fft * 100000 * _config.Sensitivity));
 
             float iterationByDots = (float)i / dots;
@@ -479,6 +468,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
 
         ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
         if (ImGui.Button("Reset to Defaults"))
         {
             ResetToDefaults();

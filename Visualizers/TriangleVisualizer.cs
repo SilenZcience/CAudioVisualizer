@@ -18,22 +18,22 @@ public struct TriangleFrame
 public class TriangleConfig
 {
     public bool Enabled { get; set; } = true;
-    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 1.0f); // Cyan
-    public float BaseSize { get; set; } = 50.0f; // Base triangle size (matching GDI+ version)
-    public float Amplitude { get; set; } = 300.0f; // How much audio affects size (matching GDI+ Amplitude)
-    public int RotationSpeed { get; set; } = 0; // Degrees per frame (matching GDI+ default)
-    public int CurrentAngle { get; set; } = 0; // Manual angle setting (matching GDI+)
-    public bool Filled { get; set; } = false; // Fill triangle or just outline
-    public float LineThickness { get; set; } = 2.0f; // Line thickness (matching GDI+ LineThickness)
-    public float Sensitivity { get; set; } = 3.0f; // Audio sensitivity (matching GDI+ default)
-    public bool UseTimeColor { get; set; } = false; // Use rainbow colors
-    public bool UseRealTimeColor { get; set; } = false; // Use actual time as RGB (hour=red, minute=green, second=blue)
-    public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
-    public float FadeSpeed { get; set; } = 0.95f; // How fast triangles fade (0.9 = slow, 0.99 = fast)
-    public int TrailLength { get; set; } = 20; // Maximum number of trail triangles
-    public int PositionX { get; set; } = -1; // X position in pixels (will be set to center on first use)
-    public int PositionY { get; set; } = -1; // Y position in pixels (will be set to center on first use)
-    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
+    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 1.0f);
+    public float BaseSize { get; set; } = 50.0f;
+    public float Amplitude { get; set; } = 300.0f;
+    public int RotationSpeed { get; set; } = 0;
+    public int CurrentAngle { get; set; } = 0;
+    public bool Filled { get; set; } = false;
+    public float LineThickness { get; set; } = 2.0f;
+    public float Sensitivity { get; set; } = 3.0f;
+    public bool UseTimeColor { get; set; } = false;
+    public bool UseRealTimeColor { get; set; } = false;
+    public bool EnableFadeTrail { get; set; } = false;
+    public float FadeSpeed { get; set; } = 0.95f;
+    public int TrailLength { get; set; } = 20;
+    public int PositionX { get; set; } = -1;
+    public int PositionY { get; set; } = -1;
+    public bool UseFFT { get; set; } = false;
 }
 
 public class TriangleVisualizer : IVisualizer, IConfigurable
@@ -171,7 +171,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
         else
         {
-            // Generate current triangle vertices
             var vertices = GenerateTriangleVertices(windowSize);
 
             if (vertices.Count == 0) return;
@@ -183,7 +182,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
             GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
-            // Draw triangle
             if (_config.Filled)
             {
                 GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
@@ -198,10 +196,8 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private void UpdateTrailFrames(Vector2i windowSize)
     {
-        // Generate current triangle
         var currentTriangle = GenerateCurrentTriangle(windowSize);
 
-        // Add current triangle to trail
         _trailFrames.Insert(0, currentTriangle);
 
         // Fade existing frames and remove completely faded ones
@@ -234,7 +230,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             var frame = _trailFrames[i];
 
-            // Create vertex data with alpha transparency using reusable buffer
             _tempVertexBuffer.Clear();
 
             for (int j = 0; j < 3; j++)
@@ -269,7 +264,6 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateTriangleVertices(Vector2i windowSize)
     {
-        // Generate triangle frame and convert to vertex list using reusable buffer
         var triangleFrame = GenerateCurrentTriangle(windowSize);
         _vertexBuffer.Clear();
 
@@ -290,14 +284,12 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private TriangleFrame GenerateCurrentTriangle(Vector2i windowSize)
     {
-        // Calculate position based on configuration
         int centerX = _config.PositionX;
         int centerY = _config.PositionY;
 
-        // Select data source based on configuration
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
 
-        // Calculate the RMS (Root Mean Square) for better amplitude detection - exactly like GDI+ version
+        // Calculate the RMS (Root Mean Square) for better amplitude detection
         float rms = 0.0f;
         if (dataSource.Length > 0)
         {
@@ -309,19 +301,16 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             rms = (float)Math.Sqrt(sum / dataSource.Length);
         }
 
-        // Apply sensitivity and power scaling for more dramatic size changes - exactly like GDI+ version
-        float amplifiedRms = (float)Math.Pow(rms * _config.Sensitivity, 1.5); // Power scaling for more dramatic effect
+        // Apply sensitivity and power scaling for more dramatic size changes
+        float amplifiedRms = (float)Math.Pow(rms * _config.Sensitivity, 1.5);
 
-        // Calculate triangle size with more dramatic scaling - exactly like GDI+ version
+        // Calculate triangle size with more dramatic scaling
         float triangleSize = _config.BaseSize + (amplifiedRms * _config.Amplitude);
 
-        // Ensure minimum size - exactly like GDI+ version
         triangleSize = Math.Max(triangleSize, _config.BaseSize * 0.3f);
 
-        // Combine manual angle with automatic rotation - exactly like GDI+ version
         float totalRotation = _config.CurrentAngle + _currentRotation;
 
-        // Get current color
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
 
@@ -329,7 +318,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         Vector3[] vertices = new Vector3[3];
         for (int i = 0; i < 3; i++)
         {
-            // Each point is 120 degrees apart (360/3 = 120) - exactly like GDI+ version
+            // Each point is 120 degrees apart (360/3 = 120)
             float angle = (i * 120 + totalRotation) * (float)(Math.PI / 180.0); // Convert to radians
             vertices[i] = new Vector3(
                 centerX + (float)(Math.Cos(angle) * triangleSize),
@@ -465,6 +454,9 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
 
         ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
         if (ImGui.Button("Reset to Defaults"))
         {
             ResetToDefaults();

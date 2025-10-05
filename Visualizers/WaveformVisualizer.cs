@@ -17,21 +17,21 @@ public struct WaveformFrame
 public class WaveformConfig
 {
     public bool Enabled { get; set; } = true;
-    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 0.0f); // Lime green
-    public float Amplitude { get; set; } = 1.0f; // Audio amplitude scaling
-    public int PositionY { get; set; } = -1; // Y position in pixels (will be set to center on first use)
-    public float LineThickness { get; set; } = 2.0f; // Line thickness
-    public int StartX { get; set; } = 0; // Start X position in pixels (0 is left edge)
-    public int EndX { get; set; } = -1; // End X position in pixels (will be set to right edge on first use)
-    public bool UseTimeColor { get; set; } = false; // Use rainbow colors
-    public bool UseRealTimeColor { get; set; } = false; // Use actual time as RGB
-    public float PositionX { get; set; } = 0.5f; // X position offset (0-1, where 0.5 is center) - for overall positioning
-    public bool EnableFadeTrail { get; set; } = false; // Enable fade trail effect
-    public float FadeSpeed { get; set; } = 0.95f; // How fast waveforms fade (0.9 = slow, 0.99 = fast)
-    public int TrailLength { get; set; } = 20; // Maximum number of trail waveforms
-    public bool UseFFT { get; set; } = false; // Use FFT data instead of waveform data
-    public bool FlipV { get; set; } = false; // Flip waveform vertically (left <-> right)
-    public bool FlipH { get; set; } = false; // Flip waveform horizontally (up <-> down)
+    public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 0.0f);
+    public float Amplitude { get; set; } = 1.0f;
+    public int PositionY { get; set; } = -1;
+    public float LineThickness { get; set; } = 2.0f;
+    public int StartX { get; set; } = 0;
+    public int EndX { get; set; } = -1;
+    public bool UseTimeColor { get; set; } = false;
+    public bool UseRealTimeColor { get; set; } = false;
+    public float PositionX { get; set; } = 0.5f;
+    public bool EnableFadeTrail { get; set; } = false;
+    public float FadeSpeed { get; set; } = 0.95f;
+    public int TrailLength { get; set; } = 20;
+    public bool UseFFT { get; set; } = false;
+    public bool FlipV { get; set; } = false;
+    public bool FlipH { get; set; } = false;
 }
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
@@ -167,7 +167,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
         else
         {
-            // Generate current waveform
             var currentWaveform = GenerateCurrentWaveform(windowSize);
             if (currentWaveform.Vertices.Count == 0) return;
 
@@ -225,7 +224,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
     private WaveformFrame GenerateCurrentWaveform(Vector2i windowSize)
     {
-        // Select data source based on configuration
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
 
         if (dataSource.Length == 0)
@@ -260,7 +258,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         int waveformWidth = (int)(endPixel - startPixel);
 
-        // Use one point per pixel like GDI+ version - no artificial limits
         if (waveformWidth < 2)
         {
             return new WaveformFrame
@@ -274,11 +271,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         var vertexBuffer = new List<float>(waveformWidth * 7);
 
-        // Get current color
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
 
-        // Generate waveform points - one per pixel like GDI+ version
+        // Generate waveform points
         for (int x = 0; x < waveformWidth; x++)
         {
             // Handle flipV option
@@ -300,7 +296,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Calculate X position - direct pixel mapping like GDI+
             float pixelX = startPixel + x;
 
-            // Add vertex (position + color with alpha)
             vertexBuffer.Add(pixelX);           // X
             vertexBuffer.Add(y);                // Y
             vertexBuffer.Add(0.0f);             // Z
@@ -330,7 +325,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Apply alpha to alpha component only (every 7th float is alpha)
         for (int i = 6; i < _tempVertexBuffer.Count; i += 7)
         {
-            _tempVertexBuffer[i] = alpha; // A
+            _tempVertexBuffer[i] = alpha;
         }
 
         return _tempVertexBuffer;
@@ -347,19 +342,15 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
         GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
 
-        // Set line width
         GL.LineWidth(lineWidth);
-
-        // Enable line smoothing for smoother, less blocky appearance
         GL.Enable(EnableCap.LineSmooth);
         GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
 
         // Draw waveform as line strip
         GL.DrawArrays(PrimitiveType.LineStrip, 0, vertices.Count / 7); // 7 floats per vertex (3 pos + 4 color)
 
-        // // Reset line width and disable smoothing
-        // GL.LineWidth(1.0f);
-        // GL.Disable(EnableCap.LineSmooth);
+        GL.LineWidth(1.0f);
+        GL.Disable(EnableCap.LineSmooth);
     }
 
     public void RenderConfigGui()
@@ -481,6 +472,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
 
         ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+
         if (ImGui.Button("Reset to Defaults"))
         {
             ResetToDefaults();

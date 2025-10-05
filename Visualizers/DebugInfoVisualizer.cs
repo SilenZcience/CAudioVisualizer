@@ -9,12 +9,12 @@ namespace CAudioVisualizer.Visualizers;
 public class DebugInfoConfig
 {
     public bool Enabled { get; set; } = true;
-    public Vector3 Color { get; set; } = new Vector3(1.0f, 1.0f, 1.0f); // White
-    public Vector2 Position { get; set; } = new Vector2(10.0f, 10.0f); // Top-left corner
+    public Vector3 Color { get; set; } = new Vector3(1.0f, 1.0f, 1.0f);
+    public Vector2 Position { get; set; } = new Vector2(10.0f, 10.0f);
     public float FontSize { get; set; } = 24.0f;
-    public bool ShowFpsStats { get; set; } = true; // Show FPS information
-    public bool ShowSystemInfo { get; set; } = false; // Show system information
-    public bool ShowHotkeyTooltip { get; set; } = false; // Show hotkey tooltip
+    public bool ShowFpsStats { get; set; } = true;
+    public bool ShowSystemInfo { get; set; } = false;
+    public bool ShowHotkeyTooltip { get; set; } = false;
 }
 
 public class DebugInfoVisualizer : IVisualizer, IConfigurable
@@ -32,7 +32,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     private readonly List<double> _fpsHistory = new();
     private const int FPS_HISTORY_SIZE = 60; // Keep 1 second of history at 60fps
     private VisualizerManager? _visualizerManager;
-    private string _instanceDisplayName = "Debug Info"; // Store the instance display name
+    private string _instanceDisplayName = "Debug Info";
     private double _deltaTime = 0;
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
@@ -116,13 +116,10 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
         if (ImGui.Begin(_instanceDisplayName, flags))
         {
-            // Set text color
             var color = new System.Numerics.Vector4(_config.Color.X, _config.Color.Y, _config.Color.Z, 1.0f);
 
-            // Scale font size
             ImGui.SetWindowFontScale(_config.FontSize / 16.0f);
 
-            // FPS Information
             if (_config.ShowFpsStats)
             {
                 ImGui.TextColored(color, $"FPS: {_currentFps:F1}");
@@ -136,7 +133,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                     ImGui.Separator();
             }
 
-            // System Information
             if (_config.ShowSystemInfo)
             {
                 try
@@ -161,7 +157,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                     ImGui.Separator();
             }
 
-            // Hotkey Tooltip
             if (_config.ShowHotkeyTooltip)
             {
                 ImGui.TextColored(color, "Config Menu Hotkey: F3");
@@ -173,7 +168,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
     public void RenderConfigGui()
     {
-        // Color picker
         var color = new System.Numerics.Vector3(_config.Color.X, _config.Color.Y, _config.Color.Z);
         if (ImGui.ColorEdit3("Text Color", ref color))
         {
@@ -182,7 +176,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
         ImGui.Spacing();
 
-        // Position controls
         ImGui.Text($"Window Size: {CurrentWindowSize.X} x {CurrentWindowSize.Y}");
 
         var posX = _config.Position.X;
@@ -199,7 +192,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
         ImGui.Spacing();
 
-        // Font size
         var fontSize = _config.FontSize;
         if (ImGui.SliderFloat("Font Size", ref fontSize, 8.0f, 72.0f))
         {
@@ -208,7 +200,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
         ImGui.Spacing();
 
-        // Show detailed info
         var showFpsStats = _config.ShowFpsStats;
         if (ImGui.Checkbox("Show FPS Statistics", ref showFpsStats))
         {
