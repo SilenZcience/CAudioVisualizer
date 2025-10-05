@@ -12,7 +12,6 @@ public class ConfigurationGui
     private readonly Action? _onConfigChanged;
     private readonly CAudioVisualizer.AudioVisualizerWindow? _window;
 
-    // Audio device list - only populated when refresh is pressed
     private List<AudioDeviceInfo>? _audioDevices;
     private string[]? _deviceNames;
 
@@ -39,6 +38,7 @@ public class ConfigurationGui
             {
                 RenderApplicationTab();
                 RenderBackgroundTab();
+                RenderPostProcessingTab();
                 RenderVisualizerTabs();
 
                 ImGui.EndTabBar();
@@ -263,6 +263,24 @@ public class ConfigurationGui
             else
             {
                 ImGui.Text("Background renderer not available");
+            }
+            ImGui.EndTabItem();
+        }
+    }
+
+    private void RenderPostProcessingTab()
+    {
+        if (ImGui.BeginTabItem("Post-Processing"))
+        {
+            var postProcessingRenderer = _visualizerManager.GetPostProcessingRenderer();
+            if (postProcessingRenderer != null)
+            {
+                postProcessingRenderer.RenderConfigGui();
+            }
+            else
+            {
+                ImGui.Text("Post-processing renderer not available");
+                ImGui.Text("Post-processing will be initialized when visualizers are loaded.");
             }
             ImGui.EndTabItem();
         }

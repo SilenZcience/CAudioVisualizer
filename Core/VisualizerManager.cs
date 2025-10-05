@@ -9,6 +9,7 @@ public class VisualizerManager : IDisposable
     private readonly Dictionary<string, VisualizerInstance> _instances = new();
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
     private BackgroundRenderer? _backgroundRenderer;
+    private PostProcessingRenderer? _postProcessingRenderer;
 
     public void RegisterVisualizerInstance(VisualizerInstance instance)
     {
@@ -62,6 +63,8 @@ public class VisualizerManager : IDisposable
         // Update current window size for all visualizers to reference
         _currentWindowSize = windowSize;
 
+        _postProcessingRenderer?.BeginCapture();
+
         _backgroundRenderer?.Render(projection);
 
         foreach (var instance in _instances.Values)
@@ -71,6 +74,8 @@ public class VisualizerManager : IDisposable
                 instance.Visualizer.Render(projection);
             }
         }
+
+        _postProcessingRenderer?.EndCaptureAndRender();
     }
 
     public Vector2i GetCurrentWindowSize()
@@ -81,6 +86,11 @@ public class VisualizerManager : IDisposable
     public BackgroundRenderer? GetBackgroundRenderer()
     {
         return _backgroundRenderer;
+    }
+
+    public PostProcessingRenderer? GetPostProcessingRenderer()
+    {
+        return _postProcessingRenderer;
     }
 
     public Dictionary<string, VisualizerInstance> GetAllInstances()
@@ -109,6 +119,11 @@ public class VisualizerManager : IDisposable
         if (_backgroundRenderer != null)
         {
             configs["Background"] = _backgroundRenderer.SaveConfiguration();
+        }
+
+        if (_postProcessingRenderer != null)
+        {
+            configs["PostProcessing"] = _postProcessingRenderer.SaveConfiguration();
         }
 
         foreach (var kvp in _instances)
@@ -148,10 +163,20 @@ public class VisualizerManager : IDisposable
             _backgroundRenderer.LoadConfiguration(backgroundConfig);
         }
 
+        // Initialize post-processing renderer
+        _postProcessingRenderer = new PostProcessingRenderer();
+        _postProcessingRenderer.SetVisualizerManager(this);
+        _postProcessingRenderer.Initialize();
+
+        if (configs.TryGetValue("PostProcessing", out var postProcessingConfig))
+        {
+            _postProcessingRenderer.LoadConfiguration(postProcessingConfig);
+        }
+
         // Recreate instances from configuration keys (skip "Background" key)
         foreach (var instanceId in configs.Keys)
         {
-            if (instanceId == "Background") continue;
+            if (instanceId == "Background" || instanceId == "PostProcessing") continue;
 
             if (!_instances.ContainsKey(instanceId))
             {
@@ -233,6 +258,7 @@ public class VisualizerManager : IDisposable
         _instances.Clear();
 
         _backgroundRenderer?.Dispose();
+        _postProcessingRenderer?.Dispose();
 
         GC.SuppressFinalize(this);
     }
