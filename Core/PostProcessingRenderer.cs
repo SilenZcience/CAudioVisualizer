@@ -25,6 +25,8 @@ public class PostProcessingConfig
     public float Brightness { get; set; } = 0.0f;
     public float Saturation { get; set; } = 1.0f;
     public Vector3 ColorTint { get; set; } = new Vector3(1.0f, 1.0f, 1.0f);
+    public bool UseTimeColorTint { get; set; } = false;
+    public bool UseRealTimeColorTint { get; set; } = false;
 
     public bool EnableFilmGrain { get; set; } = false;
     public float GrainStrength { get; set; } = 0.2f;
@@ -395,7 +397,12 @@ public class PostProcessingRenderer : IConfigurable
         GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "contrast"), _config.Contrast);
         GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "brightness"), _config.Brightness);
         GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "saturation"), _config.Saturation);
-        GL.Uniform3(GL.GetUniformLocation(_postProcessShaderProgram, "colorTint"), _config.ColorTint);
+
+        // Use time-based color for tint if enabled
+        Vector3 colorTint = _config.UseTimeColorTint ? TimeColorHelper.GetTimeBasedColor() :
+                          _config.UseRealTimeColorTint ? TimeColorHelper.GetRealTimeBasedColor() : _config.ColorTint;
+        GL.Uniform3(GL.GetUniformLocation(_postProcessShaderProgram, "colorTint"), colorTint);
+
         GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "grainStrength"), _config.GrainStrength);
 
         // Bind textures
@@ -608,10 +615,27 @@ public class PostProcessingRenderer : IConfigurable
                     _config.Saturation = saturation;
                 }
 
-                var colorTint = new System.Numerics.Vector3(_config.ColorTint.X, _config.ColorTint.Y, _config.ColorTint.Z);
-                if (ImGui.ColorEdit3("Color Tint", ref colorTint))
+                bool useTimeColorTint = _config.UseTimeColorTint;
+                if (ImGui.Checkbox("Rainbow Color Tint", ref useTimeColorTint))
                 {
-                    _config.ColorTint = new Vector3(colorTint.X, colorTint.Y, colorTint.Z);
+                    _config.UseTimeColorTint = useTimeColorTint;
+                    if (useTimeColorTint) _config.UseRealTimeColorTint = false; // Disable other color mode
+                }
+                ImGui.SameLine();
+                bool useRealTimeColorTint = _config.UseRealTimeColorTint;
+                if (ImGui.Checkbox("Time-based RGB Tint (H:M:S)", ref useRealTimeColorTint))
+                {
+                    _config.UseRealTimeColorTint = useRealTimeColorTint;
+                    if (useRealTimeColorTint) _config.UseTimeColorTint = false; // Disable other color mode
+                }
+
+                if (!_config.UseTimeColorTint && !_config.UseRealTimeColorTint)
+                {
+                    var colorTint = new System.Numerics.Vector3(_config.ColorTint.X, _config.ColorTint.Y, _config.ColorTint.Z);
+                    if (ImGui.ColorEdit3("Color Tint", ref colorTint))
+                    {
+                        _config.ColorTint = new Vector3(colorTint.X, colorTint.Y, colorTint.Z);
+                    }
                 }
             }
 

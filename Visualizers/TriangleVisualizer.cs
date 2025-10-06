@@ -419,7 +419,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
             _config.UseTimeColor = useTimeColor;
             if (useTimeColor) _config.UseRealTimeColor = false; // Disable other color mode
         }
-
+        ImGui.SameLine();
         bool useRealTimeColor = _config.UseRealTimeColor;
         if (ImGui.Checkbox("Time-based RGB (H:M:S)", ref useRealTimeColor))
         {

@@ -435,9 +435,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             _config.UseTimeColor = useTimeColor;
             if (useTimeColor) _config.UseRealTimeColor = false; // Disable other color mode
         }
-
+        ImGui.SameLine();
         bool useRealTimeColor = _config.UseRealTimeColor;
-        if (ImGui.Checkbox("Real Time Colors", ref useRealTimeColor))
+        if (ImGui.Checkbox("Time-based RGB (H:M:S)", ref useRealTimeColor))
         {
             _config.UseRealTimeColor = useRealTimeColor;
             if (useRealTimeColor) _config.UseTimeColor = false; // Disable other color mode

@@ -32,6 +32,10 @@ public class BackgroundConfig
     public GradientType GradientType { get; set; } = GradientType.Vertical;
     public Vector3 Color1 { get; set; } = new Vector3(0.0f, 0.0f, 0.0f);
     public Vector3 Color2 { get; set; } = new Vector3(0.2f, 0.0f, 0.4f);
+    public bool UseTimeColor1 { get; set; } = false;
+    public bool UseRealTimeColor1 { get; set; } = false;
+    public bool UseTimeColor2 { get; set; } = false;
+    public bool UseRealTimeColor2 { get; set; } = false;
 
     // Audio reactive settings
     public float TransitionTime { get; set; } = 2.0f;
@@ -355,16 +359,22 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             _lastWindowSize = windowSize;
         }
 
-        if (_lastColor1 != _config.Color1)
+        // Calculate colors (time-based colors change every frame)
+        Vector3 color1 = _config.UseTimeColor1 ? TimeColorHelper.GetTimeBasedColor() :
+                         _config.UseRealTimeColor1 ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color1;
+        Vector3 color2 = _config.UseTimeColor2 ? TimeColorHelper.GetTimeBasedColor() :
+                         _config.UseRealTimeColor2 ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color2;
+
+        if (_lastColor1 != color1 || _config.UseTimeColor1 || _config.UseRealTimeColor1)
         {
-            GL.Uniform3(_color1Location, _config.Color1);
-            _lastColor1 = _config.Color1;
+            GL.Uniform3(_color1Location, color1);
+            _lastColor1 = color1;
         }
 
-        if (_lastColor2 != _config.Color2)
+        if (_lastColor2 != color2 || _config.UseTimeColor2 || _config.UseRealTimeColor2)
         {
-            GL.Uniform3(_color2Location, _config.Color2);
-            _lastColor2 = _config.Color2;
+            GL.Uniform3(_color2Location, color2);
+            _lastColor2 = color2;
         }
 
         if (_lastMode != _config.Mode)
@@ -411,16 +421,56 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             _config.Mode = (BackgroundMode)currentMode;
         }
 
-        var color1 = new System.Numerics.Vector3(_config.Color1.X, _config.Color1.Y, _config.Color1.Z);
-        if (ImGui.ColorEdit3("Primary Color", ref color1))
+        // Primary Color
+        bool useTimeColor1 = _config.UseTimeColor1;
+        if (ImGui.Checkbox("Rainbow Primary Color", ref useTimeColor1))
         {
-            _config.Color1 = new Vector3(color1.X, color1.Y, color1.Z);
+            _config.UseTimeColor1 = useTimeColor1;
+            if (useTimeColor1) _config.UseRealTimeColor1 = false; // Disable other color mode
         }
-        var color2 = new System.Numerics.Vector3(_config.Color2.X, _config.Color2.Y, _config.Color2.Z);
-        if (ImGui.ColorEdit3("Secondary Color", ref color2))
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(200);
+        bool useRealTimeColor1 = _config.UseRealTimeColor1;
+        if (ImGui.Checkbox("Time-based RGB Primary (H:M:S)", ref useRealTimeColor1))
         {
-            _config.Color2 = new Vector3(color2.X, color2.Y, color2.Z);
+            _config.UseRealTimeColor1 = useRealTimeColor1;
+            if (useRealTimeColor1) _config.UseTimeColor1 = false; // Disable other color mode
         }
+
+        if (!_config.UseTimeColor1 && !_config.UseRealTimeColor1)
+        {
+            var color1 = new System.Numerics.Vector3(_config.Color1.X, _config.Color1.Y, _config.Color1.Z);
+            if (ImGui.ColorEdit3("Primary Color", ref color1))
+            {
+                _config.Color1 = new Vector3(color1.X, color1.Y, color1.Z);
+            }
+        }
+
+        // Secondary Color
+        bool useTimeColor2 = _config.UseTimeColor2;
+        if (ImGui.Checkbox("Rainbow Secondary Color", ref useTimeColor2))
+        {
+            _config.UseTimeColor2 = useTimeColor2;
+            if (useTimeColor2) _config.UseRealTimeColor2 = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        // ImGui.SetCursorPosX(200);
+        bool useRealTimeColor2 = _config.UseRealTimeColor2;
+        if (ImGui.Checkbox("Time-based RGB Secondary (H:M:S)", ref useRealTimeColor2))
+        {
+            _config.UseRealTimeColor2 = useRealTimeColor2;
+            if (useRealTimeColor2) _config.UseTimeColor2 = false; // Disable other color mode
+        }
+
+        if (!_config.UseTimeColor2 && !_config.UseRealTimeColor2)
+        {
+            var color2 = new System.Numerics.Vector3(_config.Color2.X, _config.Color2.Y, _config.Color2.Z);
+            if (ImGui.ColorEdit3("Secondary Color", ref color2))
+            {
+                _config.Color2 = new Vector3(color2.X, color2.Y, color2.Z);
+            }
+        }
+
         ImGui.SameLine();
         if (ImGui.Button("Swap Colors"))
         {
