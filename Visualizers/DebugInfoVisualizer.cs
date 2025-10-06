@@ -141,7 +141,6 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                     var gcMemory = GC.GetTotalMemory(false) / (1024 * 1024);
                     var workingSet = process.WorkingSet64 / (1024 * 1024);
 
-                    ImGui.TextColored(color, "System Info:");
                     ImGui.TextColored(color, $"CPU Cores: {Environment.ProcessorCount}");
                     ImGui.TextColored(color, $"Threads: {process.Threads.Count}");
                     ImGui.TextColored(color, $"Working Set: {workingSet} MB");

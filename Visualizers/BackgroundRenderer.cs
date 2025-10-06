@@ -36,6 +36,8 @@ public class BackgroundConfig
     public bool UseRealTimeColor1 { get; set; } = false;
     public bool UseTimeColor2 { get; set; } = false;
     public bool UseRealTimeColor2 { get; set; } = false;
+    public bool InvertColor1 { get; set; } = false;
+    public bool InvertColor2 { get; set; } = false;
 
     // Audio reactive settings
     public float TransitionTime { get; set; } = 2.0f;
@@ -364,6 +366,8 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
                          _config.UseRealTimeColor1 ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color1;
         Vector3 color2 = _config.UseTimeColor2 ? TimeColorHelper.GetTimeBasedColor() :
                          _config.UseRealTimeColor2 ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color2;
+        if (_config.InvertColor1) color1 = TimeColorHelper.InvertColor(color1);
+        if (_config.InvertColor2) color2 = TimeColorHelper.InvertColor(color2);
 
         if (_lastColor1 != color1 || _config.UseTimeColor1 || _config.UseRealTimeColor1)
         {
@@ -421,6 +425,26 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             _config.Mode = (BackgroundMode)currentMode;
         }
 
+        if (ImGui.Button("Swap Colors"))
+        {
+            var temp = _config.Color1;
+            _config.Color1 = _config.Color2;
+            _config.Color2 = temp;
+
+            // Swap checkbox states
+            var tempUseTimeColor = _config.UseTimeColor1;
+            _config.UseTimeColor1 = _config.UseTimeColor2;
+            _config.UseTimeColor2 = tempUseTimeColor;
+
+            var tempUseRealTimeColor = _config.UseRealTimeColor1;
+            _config.UseRealTimeColor1 = _config.UseRealTimeColor2;
+            _config.UseRealTimeColor2 = tempUseRealTimeColor;
+
+            var tempInvertColor = _config.InvertColor1;
+            _config.InvertColor1 = _config.InvertColor2;
+            _config.InvertColor2 = tempInvertColor;
+        }
+
         // Primary Color
         bool useTimeColor1 = _config.UseTimeColor1;
         if (ImGui.Checkbox("Rainbow Primary Color", ref useTimeColor1))
@@ -435,6 +459,13 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
         {
             _config.UseRealTimeColor1 = useRealTimeColor1;
             if (useRealTimeColor1) _config.UseTimeColor1 = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(455);
+        bool invertColor1 = _config.InvertColor1;
+        if (ImGui.Checkbox("Invert Primary Color", ref invertColor1))
+        {
+            _config.InvertColor1 = invertColor1;
         }
 
         if (!_config.UseTimeColor1 && !_config.UseRealTimeColor1)
@@ -454,12 +485,19 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             if (useTimeColor2) _config.UseRealTimeColor2 = false; // Disable other color mode
         }
         ImGui.SameLine();
-        // ImGui.SetCursorPosX(200);
+        ImGui.SetCursorPosX(200);
         bool useRealTimeColor2 = _config.UseRealTimeColor2;
         if (ImGui.Checkbox("Time-based RGB Secondary (H:M:S)", ref useRealTimeColor2))
         {
             _config.UseRealTimeColor2 = useRealTimeColor2;
             if (useRealTimeColor2) _config.UseTimeColor2 = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(455);
+        bool invertColor2 = _config.InvertColor2;
+        if (ImGui.Checkbox("Invert Secondary Color", ref invertColor2))
+        {
+            _config.InvertColor2 = invertColor2;
         }
 
         if (!_config.UseTimeColor2 && !_config.UseRealTimeColor2)
@@ -469,18 +507,6 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             {
                 _config.Color2 = new Vector3(color2.X, color2.Y, color2.Z);
             }
-        }
-
-        ImGui.SameLine();
-        if (ImGui.Button("Swap Colors"))
-        {
-            var temp = _config.Color1;
-            _config.Color1 = _config.Color2;
-            _config.Color2 = temp;
-        }
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip("Swap primary and secondary colors");
         }
 
         ImGui.Spacing();

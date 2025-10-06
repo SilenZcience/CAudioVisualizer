@@ -28,6 +28,7 @@ public class TriangleConfig
     public float Sensitivity { get; set; } = 3.0f;
     public bool UseTimeColor { get; set; } = false;
     public bool UseRealTimeColor { get; set; } = false;
+    public bool InvertColor { get; set; } = false;
     public bool EnableFadeTrail { get; set; } = false;
     public float FadeSpeed { get; set; } = 0.95f;
     public int TrailLength { get; set; } = 20;
@@ -313,6 +314,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
+        if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
         // Generate triangle vertices
         Vector3[] vertices = new Vector3[3];
@@ -425,6 +427,12 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         {
             _config.UseRealTimeColor = useRealTimeColor;
             if (useRealTimeColor) _config.UseTimeColor = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        bool invertColor = _config.InvertColor;
+        if (ImGui.Checkbox("Invert Color", ref invertColor))
+        {
+            _config.InvertColor = invertColor;
         }
 
         if (!_config.UseTimeColor && !_config.UseRealTimeColor)

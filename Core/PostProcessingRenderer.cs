@@ -27,6 +27,7 @@ public class PostProcessingConfig
     public Vector3 ColorTint { get; set; } = new Vector3(1.0f, 1.0f, 1.0f);
     public bool UseTimeColorTint { get; set; } = false;
     public bool UseRealTimeColorTint { get; set; } = false;
+    public bool InvertColorTint { get; set; } = false;
 
     public bool EnableFilmGrain { get; set; } = false;
     public float GrainStrength { get; set; } = 0.2f;
@@ -401,6 +402,8 @@ public class PostProcessingRenderer : IConfigurable
         // Use time-based color for tint if enabled
         Vector3 colorTint = _config.UseTimeColorTint ? TimeColorHelper.GetTimeBasedColor() :
                           _config.UseRealTimeColorTint ? TimeColorHelper.GetRealTimeBasedColor() : _config.ColorTint;
+        if (_config.InvertColorTint) colorTint = TimeColorHelper.InvertColor(colorTint);
+
         GL.Uniform3(GL.GetUniformLocation(_postProcessShaderProgram, "colorTint"), colorTint);
 
         GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "grainStrength"), _config.GrainStrength);
@@ -627,6 +630,12 @@ public class PostProcessingRenderer : IConfigurable
                 {
                     _config.UseRealTimeColorTint = useRealTimeColorTint;
                     if (useRealTimeColorTint) _config.UseTimeColorTint = false; // Disable other color mode
+                }
+                ImGui.SameLine();
+                bool invertColorTint = _config.InvertColorTint;
+                if (ImGui.Checkbox("Invert Color Tint", ref invertColorTint))
+                {
+                    _config.InvertColorTint = invertColorTint;
                 }
 
                 if (!_config.UseTimeColorTint && !_config.UseRealTimeColorTint)

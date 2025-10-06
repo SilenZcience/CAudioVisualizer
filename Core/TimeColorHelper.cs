@@ -48,4 +48,9 @@ public static class TimeColorHelper
             _ => new Vector3(v, p, q)
         };
     }
+
+    public static Vector3 InvertColor(Vector3 color)
+    {
+        return new Vector3(1.0f - color.X, 1.0f - color.Y, 1.0f - color.Z);
+    }
 }

@@ -25,6 +25,7 @@ public class WaveformConfig
     public int EndX { get; set; } = -1;
     public bool UseTimeColor { get; set; } = false;
     public bool UseRealTimeColor { get; set; } = false;
+    public bool InvertColor { get; set; } = false;
     public float PositionX { get; set; } = 0.5f;
     public bool EnableFadeTrail { get; set; } = false;
     public float FadeSpeed { get; set; } = 0.95f;
@@ -273,6 +274,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
+        if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
         // Generate waveform points
         for (int x = 0; x < waveformWidth; x++)
@@ -441,6 +443,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             _config.UseRealTimeColor = useRealTimeColor;
             if (useRealTimeColor) _config.UseTimeColor = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        bool invertColor = _config.InvertColor;
+        if (ImGui.Checkbox("Invert Color", ref invertColor))
+        {
+            _config.InvertColor = invertColor;
         }
 
         if (!_config.UseTimeColor && !_config.UseRealTimeColor)

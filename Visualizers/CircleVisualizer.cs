@@ -27,6 +27,7 @@ public class CircleConfig
     public float Sensitivity { get; set; } = 1.0f;
     public bool UseTimeColor { get; set; } = false;
     public bool UseRealTimeColor { get; set; } = false;
+    public bool InvertColor { get; set; } = false;
     public bool EnableFadeTrail { get; set; } = false;
     public float FadeSpeed { get; set; } = 0.95f;
     public int TrailLength { get; set; } = 20;
@@ -270,6 +271,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
+        if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
         // First loop: Step by 2, use -PI (upper semicircle)
         for (int i = 1; i <= dots; i += 2)
@@ -439,6 +441,12 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         {
             _config.UseRealTimeColor = useRealTimeColor;
             if (useRealTimeColor) _config.UseTimeColor = false; // Disable other color mode
+        }
+        ImGui.SameLine();
+        bool invertColor = _config.InvertColor;
+        if (ImGui.Checkbox("Invert Color", ref invertColor))
+        {
+            _config.InvertColor = invertColor;
         }
 
         if (!_config.UseTimeColor && !_config.UseRealTimeColor)
