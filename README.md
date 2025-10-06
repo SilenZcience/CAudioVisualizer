@@ -119,7 +119,7 @@ Feel free to explore the code, contribute, or request new features!
 ### Self-Contained Version (win-x64 and win-x86)
 - **Operating System**: Windows 10/11 (x64 or x86)
 - **Memory**: 500MB RAM minimum
-- **Graphics**: DirectX 11 compatible graphics card
+- **Graphics**: OpenGL 3.3+ compatible graphics card
 - **Audio**: Windows audio device (speakers/headphones)
 - **Disk Space**: ~200MB
 
