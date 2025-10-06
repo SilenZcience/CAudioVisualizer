@@ -8,6 +8,12 @@ namespace CAudioVisualizer.Visualizers;
 
 public enum BackgroundMode
 {
+    Static,
+    AudioReactive
+}
+
+public enum BackgroundType
+{
     Solid,
     Gradient
 }
@@ -21,10 +27,17 @@ public enum GradientType
 
 public class BackgroundConfig
 {
-    public BackgroundMode Mode { get; set; } = BackgroundMode.Solid;
+    public BackgroundMode Mode { get; set; } = BackgroundMode.Static;
+    public BackgroundType StaticType { get; set; } = BackgroundType.Solid;
     public GradientType GradientType { get; set; } = GradientType.Vertical;
-    public Vector3 Color1 { get; set; } = new Vector3(0.0f, 0.0f, 0.0f); // Primary color
-    public Vector3 Color2 { get; set; } = new Vector3(0.2f, 0.0f, 0.4f); // Secondary color for gradients
+    public Vector3 Color1 { get; set; } = new Vector3(0.0f, 0.0f, 0.0f);
+    public Vector3 Color2 { get; set; } = new Vector3(0.2f, 0.0f, 0.4f);
+
+    // Audio reactive settings
+    public float TransitionTime { get; set; } = 2.0f;
+    public float MaxLevelDecay { get; set; } = 0.95f;
+    public bool UseRMS { get; set; } = true;
+    public bool InvertGradient { get; set; } = false;
 }
 
 public class BackgroundRenderer : IVisualizer, IConfigurable
@@ -36,13 +49,20 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
     private int _vao, _vbo, _ebo;
     private int _resolutionLocation, _modeLocation;
     private int _color1Location, _color2Location;
-    private int _gradientTypeLocation;
+    private int _staticTypeLocation, _gradientTypeLocation, _audioIntensityLocation, _invertGradientLocation;
     private bool _initialized = false;
     private VisualizerManager? _visualizerManager;
+
+    // Audio reactive state
+    private float _currentAudioLevel = 0.0f;
+    private float _maxAudioLevelEverHeard = 0.0f;
+    private float _targetColorMix = 0.0f;
+    private float _currentColorMix = 0.0f;
 
     // Cached render state to avoid redundant GL calls
     private Vector2i _lastWindowSize = new(-1, -1);
     private BackgroundMode _lastMode = (BackgroundMode)(-1);
+    private BackgroundType _lastStaticType = (BackgroundType)(-1);
     private GradientType _lastGradientType = (GradientType)(-1);
     private Vector3 _lastColor1 = new(-1);
     private Vector3 _lastColor2 = new(-1);
@@ -91,7 +111,10 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             uniform vec3 u_color1;
             uniform vec3 u_color2;
             uniform int u_mode;
+            uniform int u_staticType;
             uniform int u_gradientType;
+            uniform float u_colorMix;
+            uniform bool u_invertGradient;
 
             out vec4 FragColor;
 
@@ -110,42 +133,90 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
                 vec2 uv = gl_FragCoord.xy / u_resolution;
                 vec3 color = u_color1;
 
-                if (u_mode == 0) // Solid
+                if (u_mode == 0) // Static
                 {
-                    color = u_color1;
+                    if (u_staticType == 0) // Solid
+                    {
+                        color = u_color1;
+                    }
+                    else if (u_staticType == 1) // Gradient
+                    {
+                        float gradient = 0.0;
+
+                        if (u_gradientType == 0) // Horizontal Gradient
+                        {
+                            gradient = u_invertGradient ? (1.0 - uv.x) : uv.x;
+                        }
+                        else if (u_gradientType == 1) // Vertical Gradient
+                        {
+                            gradient = u_invertGradient ? (1.0 - uv.y) : uv.y;
+                        }
+                        else if (u_gradientType == 2) // Circular Gradient
+                        {
+                            vec2 center = vec2(0.5, 0.5);
+                            float dist = distance(uv, center);
+                            float maxDist = 0.70710678; // sqrt(0.5) - distance to corner
+                            float normalizedDist = clamp(dist / maxDist, 0.0, 1.0);
+                            gradient = u_invertGradient ? (1.0 - normalizedDist) : normalizedDist;
+                        }
+
+                        // Apply much stronger dithering to break up banding
+                        float noise = blueNoise(gl_FragCoord.xy);
+                        float dither = (noise - 0.5) * 0.08;
+
+                        // Add temporal dithering based on screen position
+                        float spatialDither = fract(dot(gl_FragCoord.xy, vec2(0.1547, 0.2847))) - 0.5;
+                        dither += spatialDither * (2.0 / 255.0);
+
+                        // Use smooth RGB interpolation with dithering
+                        float finalGradient = clamp(gradient + dither, 0.0, 1.0);
+                        float smoothed = smoothstep(0.0, 1.0, finalGradient);
+                        color = mix(u_color1, u_color2, smoothed);
+                    }
                 }
-                else if (u_mode == 1) // Gradient
+                else if (u_mode == 1) // AudioReactive
                 {
-                    float gradient = 0.0;
-
-                    if (u_gradientType == 0) // Horizontal Gradient
+                    if (u_staticType == 0) // Solid
                     {
-                        gradient = uv.x;
+                        // Simple smooth color mixing from Color1 (0) to Color2 (1)
+                        color = mix(u_color1, u_color2, u_colorMix);
                     }
-                    else if (u_gradientType == 1) // Vertical Gradient
+                    else if (u_staticType == 1) // Gradient
                     {
-                        gradient = uv.y;
+                        float gradient = 0.0;
+
+                        if (u_gradientType == 0) // Horizontal Gradient
+                        {
+                            gradient = u_invertGradient ? (1.0 - uv.x) : uv.x;
+                        }
+                        else if (u_gradientType == 1) // Vertical Gradient
+                        {
+                            gradient = u_invertGradient ? (1.0 - uv.y) : uv.y;
+                        }
+                        else if (u_gradientType == 2) // Circular Gradient
+                        {
+                            vec2 center = vec2(0.5, 0.5);
+                            float dist = distance(uv, center);
+                            float maxDist = 0.70710678; // sqrt(0.5) - distance to corner
+                            float normalizedDist = clamp(dist / maxDist, 0.0, 1.0);
+                            gradient = u_invertGradient ? (1.0 - normalizedDist) : normalizedDist;
+                        }
+
+                        // Shift the gradient comparison point based on colorMix
+                        float threshold = 1.0 - u_colorMix;
+
+                        // Apply light dithering for smoothness
+                        float noise = blueNoise(gl_FragCoord.xy);
+                        float dither = (noise - 0.5) * 0.08;
+                        float spatialDither = fract(dot(gl_FragCoord.xy, vec2(0.1547, 0.2847))) - 0.5;
+                        dither += spatialDither * (2.0 / 255.0);
+
+                        float finalGradient = clamp(gradient + dither, 0.0, 1.0);
+
+                        // Use smooth step to create moving gradient boundary
+                        float smoothed = smoothstep(threshold - 0.1, threshold + 0.5, finalGradient);
+                        color = mix(u_color1, u_color2, smoothed);
                     }
-                    else if (u_gradientType == 2) // Circular Gradient
-                    {
-                        vec2 center = vec2(0.5, 0.5);
-                        float dist = distance(uv, center);
-                        float maxDist = 0.70710678; // sqrt(0.5) - distance to corner
-                        gradient = clamp(dist / maxDist, 0.0, 1.0);
-                    }
-
-                    // Apply much stronger dithering to break up banding
-                    float noise = blueNoise(gl_FragCoord.xy);
-                    float dither = (noise - 0.5) * 0.08; // Much stronger dithering
-
-                    // Add temporal dithering based on screen position
-                    float spatialDither = fract(dot(gl_FragCoord.xy, vec2(0.1547, 0.2847))) - 0.5;
-                    dither += spatialDither * (2.0 / 255.0);
-
-                    // Use smooth RGB interpolation with dithering
-                    float finalGradient = clamp(gradient + dither, 0.0, 1.0);
-                    float smoothed = smoothstep(0.0, 1.0, finalGradient);
-                    color = mix(u_color1, u_color2, smoothed);
                 }
 
                 FragColor = vec4(color, 1.0);
@@ -171,7 +242,10 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
         _color1Location = GL.GetUniformLocation(_shaderProgram, "u_color1");
         _color2Location = GL.GetUniformLocation(_shaderProgram, "u_color2");
         _modeLocation = GL.GetUniformLocation(_shaderProgram, "u_mode");
+        _staticTypeLocation = GL.GetUniformLocation(_shaderProgram, "u_staticType");
         _gradientTypeLocation = GL.GetUniformLocation(_shaderProgram, "u_gradientType");
+        _audioIntensityLocation = GL.GetUniformLocation(_shaderProgram, "u_colorMix");
+        _invertGradientLocation = GL.GetUniformLocation(_shaderProgram, "u_invertGradient");
 
         // Clean up shader objects
         GL.DeleteShader(vertexShader);
@@ -213,7 +287,53 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
 
     public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
-        // Background doesn't use audio data
+        if (_config.Mode != BackgroundMode.AudioReactive)
+        {
+            _currentAudioLevel = 0.0f;
+            _currentColorMix = 0.0f;
+            return;
+        }
+
+        float audioLevel = 0.0f;
+
+        if (_config.UseRMS)
+        {
+            // Use RMS (Root Mean Square) for smoother audio detection
+            float sum = 0.0f;
+            for (int i = 0; i < fftData.Length; i++)
+            {
+                sum += fftData[i] * fftData[i];
+            }
+            audioLevel = (float)Math.Sqrt(sum / fftData.Length);
+        }
+        else
+        {
+            // Use peak detection as fallback
+            for (int i = 0; i < waveformData.Length; i++)
+            {
+                audioLevel = Math.Max(audioLevel, Math.Abs(waveformData[i]));
+            }
+        }
+
+        _currentAudioLevel = audioLevel;
+
+        // Update max audio level with decay
+        float decayPerSecond = (float)Math.Pow(_config.MaxLevelDecay, deltaTime);
+        _maxAudioLevelEverHeard *= decayPerSecond;
+        _maxAudioLevelEverHeard = Math.Max(_maxAudioLevelEverHeard, 0.001f); // Keep minimum threshold
+
+        if (audioLevel > _maxAudioLevelEverHeard)
+        {
+            _maxAudioLevelEverHeard = audioLevel;
+        }
+
+        // Calculate target color mix (0 = Color1, 1 = Color2)
+        _targetColorMix = _currentAudioLevel / _maxAudioLevelEverHeard;
+
+        // Smooth transition towards target (takes _config.TransitionTime seconds)
+        float transitionRate = (float)(1.0 / _config.TransitionTime * deltaTime);
+        _currentColorMix += (_targetColorMix - _currentColorMix) * transitionRate;
+        _currentColorMix = Math.Max(0.0f, Math.Min(1.0f, _currentColorMix));
     }
 
     public void Render(Matrix4 projection)
@@ -253,11 +373,23 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             _lastMode = _config.Mode;
         }
 
+        if (_lastStaticType != _config.StaticType)
+        {
+            GL.Uniform1(_staticTypeLocation, (int)_config.StaticType);
+            _lastStaticType = _config.StaticType;
+        }
+
         if (_lastGradientType != _config.GradientType)
         {
             GL.Uniform1(_gradientTypeLocation, (int)_config.GradientType);
             _lastGradientType = _config.GradientType;
         }
+
+        // Always update color mix for AudioReactive mode
+        GL.Uniform1(_audioIntensityLocation, _currentColorMix);
+
+        // Always update gradient inversion setting
+        GL.Uniform1(_invertGradientLocation, _config.InvertGradient ? 1 : 0);
 
         // Render fullscreen quad
         GL.BindVertexArray(_vao);
@@ -267,23 +399,11 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
         GL.UseProgram(0);
     }
 
-    public void Dispose()
-    {
-        if (_initialized)
-        {
-            GL.DeleteVertexArray(_vao);
-            GL.DeleteBuffer(_vbo);
-            GL.DeleteBuffer(_ebo);
-            GL.DeleteProgram(_shaderProgram);
-        }
-    }
-
     public void RenderConfigGui()
     {
         ImGui.Text("Background Settings");
         ImGui.Separator();
 
-        // Background mode selection
         var modes = Enum.GetNames<BackgroundMode>();
         int currentMode = (int)_config.Mode;
         if (ImGui.Combo("Background Mode", ref currentMode, modes, modes.Length))
@@ -291,45 +411,132 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             _config.Mode = (BackgroundMode)currentMode;
         }
 
-        // Primary color picker
         var color1 = new System.Numerics.Vector3(_config.Color1.X, _config.Color1.Y, _config.Color1.Z);
         if (ImGui.ColorEdit3("Primary Color", ref color1))
         {
             _config.Color1 = new Vector3(color1.X, color1.Y, color1.Z);
         }
-
-        // Secondary color (for gradients)
-        if (_config.Mode == BackgroundMode.Gradient)
+        var color2 = new System.Numerics.Vector3(_config.Color2.X, _config.Color2.Y, _config.Color2.Z);
+        if (ImGui.ColorEdit3("Secondary Color", ref color2))
         {
-            var color2 = new System.Numerics.Vector3(_config.Color2.X, _config.Color2.Y, _config.Color2.Z);
-            if (ImGui.ColorEdit3("Secondary Color", ref color2))
-            {
-                _config.Color2 = new Vector3(color2.X, color2.Y, color2.Z);
-            }
+            _config.Color2 = new Vector3(color2.X, color2.Y, color2.Z);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Swap Colors"))
+        {
+            var temp = _config.Color1;
+            _config.Color1 = _config.Color2;
+            _config.Color2 = temp;
+        }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip("Swap primary and secondary colors");
+        }
 
-            // Swap colors button
-            ImGui.SameLine();
-            if (ImGui.Button("Swap Colors"))
-            {
-                var temp = _config.Color1;
-                _config.Color1 = _config.Color2;
-                _config.Color2 = temp;
-            }
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip("Swap primary and secondary colors");
-            }
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "Rendering Type");
+        ImGui.Separator();
 
+        var staticTypes = Enum.GetNames<BackgroundType>();
+        int currentStaticType = (int)_config.StaticType;
+        if (ImGui.Combo("Rendering Type", ref currentStaticType, staticTypes, staticTypes.Length))
+        {
+            _config.StaticType = (BackgroundType)currentStaticType;
+        }
+
+        if (_config.StaticType == BackgroundType.Gradient)
+        {
             var gradientTypes = Enum.GetNames<GradientType>();
             int currentGradientType = (int)_config.GradientType;
             if (ImGui.Combo("Gradient Type", ref currentGradientType, gradientTypes, gradientTypes.Length))
             {
                 _config.GradientType = (GradientType)currentGradientType;
             }
+
+            bool invertGradient = _config.InvertGradient;
+            if (ImGui.Checkbox("Invert Gradient Direction", ref invertGradient))
+            {
+                _config.InvertGradient = invertGradient;
+            }
+        }
+
+        if (_config.Mode == BackgroundMode.AudioReactive)
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Reactive Settings");
+            ImGui.Separator();
+
+            if (_config.StaticType == BackgroundType.Solid)
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(0.8f, 0.8f, 0.5f, 1.0f), "Solid mode: Colors blend based on audio level");
+            }
+            else
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(0.8f, 0.8f, 0.5f, 1.0f), "Gradient mode: Gradient shifts based on audio level");
+            }
+
+            float transitionTime = _config.TransitionTime;
+            if (ImGui.SliderFloat("Transition Time (s)", ref transitionTime, 0.1f, 10.0f))
+            {
+                _config.TransitionTime = transitionTime;
+            }
+
+            float maxLevelDecay = _config.MaxLevelDecay;
+            if (ImGui.SliderFloat("Max Level Decay", ref maxLevelDecay, 0.1f, 0.999f, "%.3f"))
+            {
+                _config.MaxLevelDecay = maxLevelDecay;
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("How fast the max volume level decays (higher = slower decay)");
+            }
+
+            bool useRMS = _config.UseRMS;
+            if (ImGui.Checkbox("Use RMS Audio Detection", ref useRMS))
+            {
+                _config.UseRMS = useRMS;
+                _currentAudioLevel = 0.0f;
+                _maxAudioLevelEverHeard = 0.0f;
+                _currentColorMix = 0.0f;
+            }
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Use RMS for smoother audio detection vs peak detection");
+            }
+
+            ImGui.Spacing();
+            ImGui.Text($"Current Volume: {_currentAudioLevel:F3}");
+            ImGui.Text($"Max Volume:     {_maxAudioLevelEverHeard:F3}");
+            ImGui.SameLine();
+            if (ImGui.Button("Reset Max Volume"))
+            {
+                _maxAudioLevelEverHeard = 0.0f;
+            }
+            ImGui.Text($"Color Mix:      {_currentColorMix:F3}");
+            ImGui.SameLine();
+            if (ImGui.Button("Reset Color Mix"))
+            {
+                _currentColorMix = 0.0f;
+            }
+        }
+        else // Static mode
+        {
+            ImGui.Spacing();
+            if (_config.StaticType == BackgroundType.Solid)
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "Static solid color display");
+            }
+            else
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), "Static gradient display");
+            }
         }
 
         ImGui.Spacing();
-        if (ImGui.Button("Reset to Default"))
+        ImGui.Separator();
+        ImGui.Spacing();
+
+        if (ImGui.Button("Reset to Defaults"))
         {
             ResetToDefaults();
         }
@@ -367,6 +574,7 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
                 _config = config;
                 // Reset cached state to force uniform updates
                 _lastMode = (BackgroundMode)(-1);
+                _lastStaticType = (BackgroundType)(-1);
                 _lastGradientType = (GradientType)(-1);
                 _lastColor1 = new(-1);
                 _lastColor2 = new(-1);
@@ -386,5 +594,19 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
         _lastGradientType = (GradientType)(-1);
         _lastColor1 = new(-1);
         _lastColor2 = new(-1);
+        _currentAudioLevel = 0.0f;
+        _maxAudioLevelEverHeard = 0.0f;
+        _currentColorMix = 0.0f;
+        _targetColorMix = 0.0f;
+    }
+
+    public void Dispose()
+    {
+        if (!_initialized) return;
+
+        GL.DeleteVertexArray(_vao);
+        GL.DeleteBuffer(_vbo);
+        GL.DeleteBuffer(_ebo);
+        GL.DeleteProgram(_shaderProgram);
     }
 }
