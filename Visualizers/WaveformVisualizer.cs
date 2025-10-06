@@ -391,13 +391,13 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         int posY = _config.PositionY;
         if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
         {
-            _config.PositionY = posY;
+            _config.PositionY = Math.Max(0, Math.Min(CurrentWindowSize.Y, posY));
         }
 
         int startX = _config.StartX;
         if (ImGui.DragInt("Start X", ref startX, 1.0f, 0, CurrentWindowSize.X))
         {
-            _config.StartX = startX;
+            _config.StartX = Math.Max(0, Math.Min(CurrentWindowSize.X, startX));
             // Ensure StartX doesn't exceed EndX
             if (_config.StartX >= _config.EndX)
                 _config.EndX = Math.Min(CurrentWindowSize.X, _config.StartX + 10);
@@ -406,7 +406,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         int endX = _config.EndX;
         if (ImGui.DragInt("End X", ref endX, 1.0f, 0, CurrentWindowSize.X))
         {
-            _config.EndX = endX;
+            _config.EndX = Math.Max(0, Math.Min(CurrentWindowSize.X, endX));
             // Ensure EndX doesn't go below StartX
             if (_config.EndX <= _config.StartX)
                 _config.StartX = Math.Max(0, _config.EndX - 10);

@@ -401,13 +401,13 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         int posX = _config.PositionX;
         if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, CurrentWindowSize.X))
         {
-            _config.PositionX = posX;
+            _config.PositionX = Math.Max(0, Math.Min(CurrentWindowSize.X, posX));
         }
 
         int posY = _config.PositionY;
         if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
         {
-            _config.PositionY = posY;
+            _config.PositionY = Math.Max(0, Math.Min(CurrentWindowSize.Y, posY));
         }
 
         ImGui.Spacing();
