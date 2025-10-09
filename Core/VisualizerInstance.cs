@@ -34,6 +34,7 @@ public static class VisualizerFactory
         { "Triangle", "Triangle Visualizer" },
         { "Circle", "Circle Visualizer" },
         { "Waveform", "Waveform Visualizer" },
+        { "Spectrum", "Spectrum Visualizer" },
         { "Debug", "Debug Info Visualizer" }
     };
 
@@ -44,6 +45,7 @@ public static class VisualizerFactory
             "Triangle" => new TriangleVisualizer(),
             "Circle" => new CircleVisualizer(),
             "Waveform" => new WaveformVisualizer(),
+            "Spectrum" => new SpectrumVisualizer(),
             "Debug" => new DebugInfoVisualizer(),
             _ => null
         };
