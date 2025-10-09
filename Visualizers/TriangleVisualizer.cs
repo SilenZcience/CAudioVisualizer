@@ -167,12 +167,12 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
         if (_config.EnableFadeTrail)
         {
-            UpdateTrailFrames(windowSize);
+            UpdateTrailFrames();
             RenderTrailFrames();
         }
         else
         {
-            var vertices = GenerateTriangleVertices(windowSize);
+            var vertices = GenerateTriangleVertices();
 
             if (vertices.Count == 0) return;
 
@@ -195,9 +195,9 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private void UpdateTrailFrames(Vector2i windowSize)
+    private void UpdateTrailFrames()
     {
-        var currentTriangle = GenerateCurrentTriangle(windowSize);
+        var currentTriangle = GenerateCurrentTriangle();
 
         _trailFrames.Insert(0, currentTriangle);
 
@@ -263,9 +263,9 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         GL.Disable(EnableCap.Blend);
     }
 
-    private List<float> GenerateTriangleVertices(Vector2i windowSize)
+    private List<float> GenerateTriangleVertices()
     {
-        var triangleFrame = GenerateCurrentTriangle(windowSize);
+        var triangleFrame = GenerateCurrentTriangle();
         _vertexBuffer.Clear();
 
         for (int i = 0; i < 3; i++)
@@ -283,7 +283,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         return _vertexBuffer;
     }
 
-    private TriangleFrame GenerateCurrentTriangle(Vector2i windowSize)
+    private TriangleFrame GenerateCurrentTriangle()
     {
         int centerX = _config.PositionX;
         int centerY = _config.PositionY;

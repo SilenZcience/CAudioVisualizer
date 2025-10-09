@@ -172,7 +172,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
         if (_config.EnableFadeTrail)
         {
-            UpdateTrailFrames(windowSize);
+            UpdateTrailFrames();
             RenderTrailFrames();
         }
         else
@@ -181,7 +181,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
             GL.Uniform1(_pointSizeLocation, _config.DotSize);
 
             // Generate circle dots
-            var vertices = GenerateCircleDots(windowSize);
+            var vertices = GenerateCircleDots();
             if (vertices.Count == 0) return;
 
             // Upload vertex data
@@ -201,9 +201,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private List<float> GenerateCircleDots(Vector2i windowSize)
+    private List<float> GenerateCircleDots()
     {
-        var circleFrame = GenerateCurrentCircle(windowSize);
+        var circleFrame = GenerateCurrentCircle();
         _vertexBuffer.Clear();
 
         foreach (var dotPos in circleFrame.DotPositions)
@@ -221,9 +221,9 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         return _vertexBuffer;
     }
 
-    private void UpdateTrailFrames(Vector2i windowSize)
+    private void UpdateTrailFrames()
     {
-        var currentCircle = GenerateCurrentCircle(windowSize);
+        var currentCircle = GenerateCurrentCircle();
 
         _trailFrames.Insert(0, currentCircle);
 
@@ -244,7 +244,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private CircleFrame GenerateCurrentCircle(Vector2i windowSize)
+    private CircleFrame GenerateCurrentCircle()
     {
         var dotPositions = new List<Vector3>();
 

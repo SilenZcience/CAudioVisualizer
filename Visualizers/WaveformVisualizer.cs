@@ -163,12 +163,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         if (_config.EnableFadeTrail)
         {
-            UpdateTrailFrames(windowSize);
+            UpdateTrailFrames();
             RenderTrailFrames();
         }
         else
         {
-            var currentWaveform = GenerateCurrentWaveform(windowSize);
+            var currentWaveform = GenerateCurrentWaveform();
             if (currentWaveform.Vertices.Count == 0) return;
 
             // Upload vertex data and render
@@ -176,9 +176,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private void UpdateTrailFrames(Vector2i windowSize)
+    private void UpdateTrailFrames()
     {
-        var currentWaveform = GenerateCurrentWaveform(windowSize);
+        var currentWaveform = GenerateCurrentWaveform();
 
         // Add current waveform to trail
         _trailFrames.Insert(0, currentWaveform);
@@ -223,7 +223,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.Disable(EnableCap.Blend);
     }
 
-    private WaveformFrame GenerateCurrentWaveform(Vector2i windowSize)
+    private WaveformFrame GenerateCurrentWaveform()
     {
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
 
@@ -245,30 +245,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         float startPixel = _config.StartX;
         float endPixel = _config.EndX;
 
-        // Ensure valid range
-        if (startPixel >= endPixel || startPixel < 0 || endPixel > windowSize.X)
-        {
-            return new WaveformFrame
-            {
-                Vertices = new List<float>(),
-                Color = _config.Color,
-                Alpha = 1.0f,
-                LineWidth = _config.LineThickness
-            };
-        }
-
         int waveformWidth = (int)(endPixel - startPixel);
-
-        if (waveformWidth < 2)
-        {
-            return new WaveformFrame
-            {
-                Vertices = new List<float>(),
-                Color = _config.Color,
-                Alpha = 1.0f,
-                LineWidth = _config.LineThickness
-            };
-        }
 
         var vertexBuffer = new List<float>(waveformWidth * 7);
 
@@ -293,7 +270,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             if (_config.FlipH)
                 scaledSample = -scaledSample;
 
-            float y = centerY - scaledSample * (windowSize.Y * 0.4f); // Use 40% of height for waveform range
+            float y = centerY - scaledSample;
 
             // Calculate X position - direct pixel mapping like GDI+
             float pixelX = startPixel + x;
@@ -361,7 +338,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         float amplitude = _config.Amplitude;
-        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.01f, 5.0f))
+        if (ImGui.SliderFloat("Amplitude", ref amplitude, 0.1f, 500.0f))
             _config.Amplitude = amplitude;
 
         float lineThickness = _config.LineThickness;
@@ -401,8 +378,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             _config.StartX = Math.Max(0, Math.Min(CurrentWindowSize.X, startX));
             // Ensure StartX doesn't exceed EndX
-            if (_config.StartX >= _config.EndX)
-                _config.EndX = Math.Min(CurrentWindowSize.X, _config.StartX + 10);
+            if (_config.StartX + 8 >= _config.EndX)
+                _config.EndX = Math.Min(CurrentWindowSize.X, _config.StartX + 8);
         }
 
         int endX = _config.EndX;
@@ -410,8 +387,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         {
             _config.EndX = Math.Max(0, Math.Min(CurrentWindowSize.X, endX));
             // Ensure EndX doesn't go below StartX
-            if (_config.EndX <= _config.StartX)
-                _config.StartX = Math.Max(0, _config.EndX - 10);
+            if (_config.EndX - 8 <= _config.StartX)
+                _config.StartX = Math.Max(0, _config.EndX - 8);
         }
 
         ImGui.Spacing();
