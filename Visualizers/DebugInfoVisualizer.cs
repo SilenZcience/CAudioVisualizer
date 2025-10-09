@@ -15,6 +15,7 @@ public class DebugInfoConfig
     public bool ShowFpsStats { get; set; } = true;
     public bool ShowSystemInfo { get; set; } = false;
     public bool ShowHotkeyTooltip { get; set; } = false;
+    public bool ShowAudioDeviceInfo { get; set; } = false;
 }
 
 public class DebugInfoVisualizer : IVisualizer, IConfigurable
@@ -35,11 +36,18 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     private string _instanceDisplayName = "Debug Info";
     private double _deltaTime = 0;
 
+    private string _audioDeviceInfo = string.Empty;
+
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
     public void SetVisualizerManager(VisualizerManager manager)
     {
         _visualizerManager = manager;
+    }
+
+    public void SetAudioDeviceInfo(string info)
+    {
+        _audioDeviceInfo = info;
     }
 
     public void SetInstanceDisplayName(string displayName)
@@ -129,7 +137,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                     ImGui.TextColored(color, $"Min: {_minFps:F1} | Max: {_maxFps:F1} | Avg: {_avgFps:F1}");
                 }
 
-                if (_config.ShowSystemInfo || _config.ShowHotkeyTooltip)
+                if (_config.ShowSystemInfo || _config.ShowAudioDeviceInfo || _config.ShowHotkeyTooltip)
                     ImGui.Separator();
             }
 
@@ -151,6 +159,16 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
                 catch
                 {
                     ImGui.TextColored(color, "System Info: Error reading data");
+                }
+                if (_config.ShowAudioDeviceInfo || _config.ShowHotkeyTooltip)
+                    ImGui.Separator();
+            }
+
+            if (_config.ShowAudioDeviceInfo && !string.IsNullOrWhiteSpace(_audioDeviceInfo))
+            {
+                foreach (var line in _audioDeviceInfo.Split('\n'))
+                {
+                    ImGui.TextColored(color, line);
                 }
                 if (_config.ShowHotkeyTooltip)
                     ImGui.Separator();
@@ -209,6 +227,12 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         if (ImGui.Checkbox("Show System Info", ref showSystemInfo))
         {
             _config.ShowSystemInfo = showSystemInfo;
+        }
+
+        var showAudioDeviceInfo = _config.ShowAudioDeviceInfo;
+        if (ImGui.Checkbox("Show Audio Device Info", ref showAudioDeviceInfo))
+        {
+            _config.ShowAudioDeviceInfo = showAudioDeviceInfo;
         }
 
         var showHotkeyTooltip = _config.ShowHotkeyTooltip;

@@ -10,6 +10,7 @@ using MathNet.Numerics.IntegralTransforms;
 using CAudioVisualizer.Core;
 using CAudioVisualizer.GUI;
 using CAudioVisualizer.Configuration;
+using CAudioVisualizer.Visualizers;
 
 namespace CAudioVisualizer;
 
@@ -106,11 +107,22 @@ public class AudioVisualizerWindow : GameWindow
         {
             _capture = AudioDeviceManager.CreateLoopbackCapture(_appConfig.SelectedAudioDeviceId);
 
-            Console.WriteLine($"Audio Device: {_appConfig.SelectedAudioDeviceName}");
-            Console.WriteLine($"Sample Rate: {_capture.WaveFormat.SampleRate} Hz");
-            Console.WriteLine($"Channels: {_capture.WaveFormat.Channels}");
-            Console.WriteLine($"Bits Per Sample: {_capture.WaveFormat.BitsPerSample}");
-            Console.WriteLine($"Bytes Per Second: {_capture.WaveFormat.AverageBytesPerSecond}");
+            string audioDeviceInfo =
+                $"Audio Device: {_appConfig.SelectedAudioDeviceName}\n" +
+                $"Sample Rate: {_capture.WaveFormat.SampleRate} Hz\n" +
+                $"Channels: {_capture.WaveFormat.Channels}\n" +
+                $"Bits Per Sample: {_capture.WaveFormat.BitsPerSample}\n" +
+                $"Bytes Per Second: {_capture.WaveFormat.AverageBytesPerSecond}";
+
+            Console.WriteLine(audioDeviceInfo.Replace("\n", Environment.NewLine));
+
+            foreach (var instance in _visualizerManager.GetAllInstances().Values)
+            {
+                if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
+                {
+                    debugVisualizer.SetAudioDeviceInfo(audioDeviceInfo);
+                }
+            }
 
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += (s, e) => Console.WriteLine("Recording stopped");
