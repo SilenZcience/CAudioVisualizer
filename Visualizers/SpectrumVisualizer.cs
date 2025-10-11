@@ -10,12 +10,16 @@ public class SpectrumConfig
 {
     public bool Enabled { get; set; } = true;
     public Vector3 Color { get; set; } = new Vector3(0.0f, 1.0f, 0.8f);
-    public float Amplitude { get; set; } = 1.0f;
+    public float Amplitude { get; set; } = 30f;
     public int BarCount { get; set; } = 64;
     public float BarWidth { get; set; } = 8.0f;
     public float BarSpacing { get; set; } = 2.0f;
     public float Size { get; set; } = 200.0f;
     public int BarAngle { get; set; } = 0; // 0 = linear, 360 = full circle
+    public bool EnablePeakIndicators { get; set; } = true;
+    public float PeakDropSpeed { get; set; } = 5f;
+    public float PeakLength { get; set; } = 8.0f;
+    public float PeakOffset { get; set; } = 5.0f;
     public int PositionX { get; set; } = -1;
     public int PositionY { get; set; } = -1;
     public bool UseTimeColor { get; set; } = false;
@@ -25,10 +29,6 @@ public class SpectrumConfig
     public float FadeSpeed { get; set; } = 0.95f;
     public int TrailLength { get; set; } = 20;
     public bool UseFFT { get; set; } = true;
-
-    // Add configuration options for peak indicators
-    public bool EnablePeakIndicators { get; set; } = true;
-    public float PeakDropSpeed { get; set; } = 0.1f;
 }
 
 public struct SpectrumFrame
@@ -311,11 +311,8 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
 
             if (_config.EnablePeakIndicators)
             {
-                Vector2 peakPos = start + dir * (_peakPositions[i] + adjustedBarSpacing * 0.2f);
-                Vector2 perp = new Vector2(-dir.Y, dir.X);
-                float peakLength = adjustedBarWidth;
-                Vector2 lineStart = peakPos - perp * (peakLength / 2);
-                Vector2 lineEnd   = peakPos + perp * (peakLength / 2);
+                Vector2 lineStart = start + dir * (_peakPositions[i] + _config.PeakOffset);
+                Vector2 lineEnd = lineStart + dir * _config.PeakLength;
 
                 _mainVertexBuffer.Add(lineStart.X);
                 _mainVertexBuffer.Add(lineStart.Y);
@@ -418,7 +415,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         ImGui.Text($"radius: {r:F2}");
         ImGui.Text($"center: ({center.X:F2}, {center.Y:F2})");
 
-
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Peak Indicators");
         ImGui.Separator();
@@ -434,6 +430,14 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             float peakDropSpeed = _config.PeakDropSpeed;
             if (ImGui.SliderFloat("Peak Drop Speed", ref peakDropSpeed, 0.01f, 100.0f))
                 _config.PeakDropSpeed = peakDropSpeed;
+
+            float peakLength = _config.PeakLength;
+            if (ImGui.SliderFloat("Peak Length", ref peakLength, 1.0f, 50.0f))
+                _config.PeakLength = peakLength;
+
+            float peakOffset = _config.PeakOffset;
+            if (ImGui.SliderFloat("Peak Offset", ref peakOffset, 0.0f, 50.0f))
+                _config.PeakOffset = peakOffset;
         }
 
         ImGui.Spacing();
