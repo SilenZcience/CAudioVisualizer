@@ -1,4 +1,3 @@
-
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using System.Text.Json;
@@ -15,8 +14,8 @@ public class SpectrumConfig
     public int BarCount { get; set; } = 64;
     public float BarWidth { get; set; } = 8.0f;
     public float BarSpacing { get; set; } = 2.0f;
-    public float Radius { get; set; } = 200.0f;
-    public float BarAngle { get; set; } = 0.0f; // 0 = linear, 360 = full circle
+    public float Size { get; set; } = 200.0f;
+    public int BarAngle { get; set; } = 0; // 0 = linear, 360 = full circle
     public int PositionX { get; set; } = -1;
     public int PositionY { get; set; } = -1;
     public bool UseTimeColor { get; set; } = false;
@@ -26,6 +25,10 @@ public class SpectrumConfig
     public float FadeSpeed { get; set; } = 0.95f;
     public int TrailLength { get; set; } = 20;
     public bool UseFFT { get; set; } = true;
+
+    // Add configuration options for peak indicators
+    public bool EnablePeakIndicators { get; set; } = true;
+    public float PeakDropSpeed { get; set; } = 0.1f;
 }
 
 public struct SpectrumFrame
@@ -51,13 +54,16 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
-    private List<SpectrumFrame> _trailFrames = new();
+    private readonly List<SpectrumFrame> _trailFrames = new();
+    private readonly List<float> _mainVertexBuffer = new();
     private VisualizerManager? _visualizerManager;
 
     private int _projectionLocation = -1;
     private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
+
+    private float[] _peakPositions = Array.Empty<float>();
 
     public void SetVisualizerManager(VisualizerManager manager)
     {
@@ -161,7 +167,12 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         {
             var currentFrame = GenerateCurrentSpectrum();
             if (currentFrame.Vertices.Count == 0) return;
-            RenderSpectrum(currentFrame.Vertices, currentFrame.BarWidth);
+
+            Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
+                           _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
+            if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
+
+            RenderSpectrum(currentFrame.Vertices, currentFrame.BarWidth, color);
         }
     }
 
@@ -194,7 +205,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             var frame = _trailFrames[i];
             if (frame.Vertices.Count == 0) continue;
             var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
-            RenderSpectrum(fadedVertices, frame.BarWidth);
+            RenderSpectrum(fadedVertices, frame.BarWidth, frame.Color);
         }
         GL.Disable(EnableCap.Blend);
     }
@@ -212,6 +223,30 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
                 BarWidth = _config.BarWidth
             };
         }
+        if (!_config.UseFFT && dataSource.Length > 1 && _config.BarAngle > 330)
+        {
+            int smoothCount = Math.Max(2, (int)(dataSource.Length * 0.1f));
+            float first = dataSource[0];
+            float last = dataSource[dataSource.Length - 1];
+            // Blend last smoothCount bars into first value
+            for (int j = 0; j < smoothCount; j++)
+            {
+                float t = (float)j / (smoothCount - 1);
+                float blend = (1 - MathF.Cos(MathF.PI * t)) / 2f;
+                float fakeValue = last * (1 - blend) + first * blend;
+                float weight = 1f - t; // Near seam: more fake, far: more original
+                dataSource[dataSource.Length - 1 - j] = dataSource[dataSource.Length - 1 - j] * (1 - weight) + fakeValue * weight;
+            }
+            // Blend first smoothCount bars into last value
+            for (int j = 0; j < smoothCount; j++)
+            {
+                float t = (float)j / (smoothCount - 1);
+                float blend = (1 - MathF.Cos(MathF.PI * (1 - t))) / 2f;
+                float fakeValue = first * (1 - blend) + last * blend;
+                float weight = 1f - t;
+                dataSource[j] = dataSource[j] * (1 - weight) + fakeValue * weight;
+            }
+        }
 
         int count = Math.Min(_config.BarCount, dataSource.Length);
         float centerX = _config.PositionX;
@@ -221,54 +256,88 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
         if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
-        var vertexBuffer = new List<float>(count * 14); // 2 vertices per bar
+        _mainVertexBuffer.Clear();
 
-        var distributedRadius = _config.Radius / (count * 2);
-        var adjustedBarWidth = _config.BarWidth + _config.BarWidth * distributedRadius;
-        var adjustedBarSpacing = _config.BarSpacing + _config.BarSpacing * distributedRadius;
+        var distributedSize = _config.Size / (count * 2);
+        var adjustedBarWidth = _config.BarWidth + _config.BarWidth * distributedSize;
+        var adjustedBarSpacing = _config.BarSpacing + _config.BarSpacing * distributedSize;
 
-        // Morph between horizontal line and full circle, always top-aligned
         float w = count * (adjustedBarWidth + adjustedBarSpacing);
-        float arcAngle = _config.BarAngle / 180 * MathF.PI;
+        float arcAngle = _config.BarAngle / 180f * MathF.PI;
         float r = w / arcAngle;
         Vector2 center = new Vector2(centerX, centerY + r);
         float thetaStart = MathF.PI / 2 + arcAngle / 2;
-        float thetaEnd = MathF.PI / 2 - arcAngle / 2;
+
+        if (_peakPositions.Length != count)
+        {
+            Array.Resize(ref _peakPositions, count);
+        }
 
         for (int i = 0; i < count; i++)
         {
             int fftIndex = (int)(i * (dataSource.Length / (float)count));
             float value = dataSource[fftIndex] * _config.Amplitude;
-            float t = count == 1 ? 0f : (float)i / (count - 1);
-            float theta = thetaStart + (thetaEnd - thetaStart) * t;
+
+            if (_config.EnablePeakIndicators)
+            {
+                _peakPositions[i] -= _config.PeakDropSpeed;
+                _peakPositions[i] = Math.Max(_peakPositions[i], value);
+                _peakPositions[i] = Math.Max(_peakPositions[i], 0);
+            }
+
+            float theta = thetaStart - arcAngle * i / count;
 
             Vector2 start = arcAngle < 1e-3f
-                ? new Vector2(centerX - w / 2 + t * w, centerY)
+                ? new Vector2(centerX - w / 2 + ((float)i / (count - 1)) * w, centerY)
                 : new Vector2(center.X + r * MathF.Cos(theta), center.Y - r * MathF.Sin(theta));
-            // Bar direction: always perpendicular to curve (normal)
             Vector2 dir = Vector2.Normalize(new Vector2(MathF.Cos(theta), -MathF.Sin(theta)));
             Vector2 end = start + dir * value;
-            // Start vertex
-            vertexBuffer.Add(start.X);
-            vertexBuffer.Add(start.Y);
-            vertexBuffer.Add(0.0f);
-            vertexBuffer.Add(color.X);
-            vertexBuffer.Add(color.Y);
-            vertexBuffer.Add(color.Z);
-            vertexBuffer.Add(1.0f);
-            // End vertex
-            vertexBuffer.Add(end.X);
-            vertexBuffer.Add(end.Y);
-            vertexBuffer.Add(0.0f);
-            vertexBuffer.Add(color.X);
-            vertexBuffer.Add(color.Y);
-            vertexBuffer.Add(color.Z);
-            vertexBuffer.Add(1.0f);
+
+            // Bar vertices
+            _mainVertexBuffer.Add(start.X);
+            _mainVertexBuffer.Add(start.Y);
+            _mainVertexBuffer.Add(0.0f);
+            _mainVertexBuffer.Add(color.X);
+            _mainVertexBuffer.Add(color.Y);
+            _mainVertexBuffer.Add(color.Z);
+            _mainVertexBuffer.Add(1.0f);
+            _mainVertexBuffer.Add(end.X);
+            _mainVertexBuffer.Add(end.Y);
+            _mainVertexBuffer.Add(0.0f);
+            _mainVertexBuffer.Add(color.X);
+            _mainVertexBuffer.Add(color.Y);
+            _mainVertexBuffer.Add(color.Z);
+            _mainVertexBuffer.Add(1.0f);
+
+            if (_config.EnablePeakIndicators)
+            {
+                Vector2 peakPos = start + dir * (_peakPositions[i] + adjustedBarSpacing * 0.2f);
+                Vector2 perp = new Vector2(-dir.Y, dir.X);
+                float peakLength = adjustedBarWidth;
+                Vector2 lineStart = peakPos - perp * (peakLength / 2);
+                Vector2 lineEnd   = peakPos + perp * (peakLength / 2);
+
+                _mainVertexBuffer.Add(lineStart.X);
+                _mainVertexBuffer.Add(lineStart.Y);
+                _mainVertexBuffer.Add(0.0f);
+                _mainVertexBuffer.Add(color.X);
+                _mainVertexBuffer.Add(color.Y);
+                _mainVertexBuffer.Add(color.Z);
+                _mainVertexBuffer.Add(1.0f);
+
+                _mainVertexBuffer.Add(lineEnd.X);
+                _mainVertexBuffer.Add(lineEnd.Y);
+                _mainVertexBuffer.Add(0.0f);
+                _mainVertexBuffer.Add(color.X);
+                _mainVertexBuffer.Add(color.Y);
+                _mainVertexBuffer.Add(color.Z);
+                _mainVertexBuffer.Add(1.0f);
+            }
         }
 
         return new SpectrumFrame
         {
-            Vertices = vertexBuffer,
+            Vertices = new List<float>(_mainVertexBuffer),
             Color = color,
             Alpha = 1.0f,
             BarWidth = adjustedBarWidth
@@ -288,9 +357,10 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         return _tempVertexBuffer;
     }
 
-    private void RenderSpectrum(List<float> vertices, float barWidth)
+    private void RenderSpectrum(List<float> vertices, float barWidth, Vector3 color)
     {
         if (vertices.Count == 0) return;
+
         GL.BindVertexArray(_vertexArrayObject);
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
         var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
@@ -299,6 +369,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         GL.Enable(EnableCap.LineSmooth);
         GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
         GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Count / 7);
+
         GL.LineWidth(1.0f);
         GL.Disable(EnableCap.LineSmooth);
     }
@@ -321,16 +392,49 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             _config.BarSpacing = barSpacing;
 
         int barCount = _config.BarCount;
-        if (ImGui.SliderInt("Bar Count", ref barCount, 4, 512))
+        if (ImGui.SliderInt("Bar Count", ref barCount, 3, 1024))
+        {
             _config.BarCount = barCount;
+            if (-2.0f * barCount > _config.Size)
+                _config.Size = -2.0f * barCount;
+        }
 
-        float radius = _config.Radius;
-        if (ImGui.SliderFloat("Radius", ref radius, -500.0f, 500.0f))
-            _config.Radius = radius;
+        float size = _config.Size;
+        if (ImGui.SliderFloat("Size", ref size, -2.0f * _config.BarCount, 500.0f))
+            _config.Size = size;
 
-        float barAngle = _config.BarAngle;
-        if (ImGui.SliderFloat("Bar Angle (deg)", ref barAngle, 0.0f, 360.0f))
+        int barAngle = _config.BarAngle;
+        if (ImGui.SliderInt("Bar Angle (deg)", ref barAngle, 0, 360))
             _config.BarAngle = barAngle;
+
+        float adjustedBarWidth = _config.BarWidth + _config.BarWidth * _config.Size / (_config.BarCount * 2);
+        float adjustedBarSpacing = _config.BarSpacing + _config.BarSpacing * _config.Size / (_config.BarCount * 2);
+        float w = _config.BarCount * (adjustedBarWidth + adjustedBarSpacing);
+        float r = _config.BarAngle > 0 ? w / (_config.BarAngle / 180f * MathF.PI) : 0;
+        Vector2 center = new Vector2(_config.PositionX, _config.PositionY + r);
+
+        ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), $"Calculated Geometry:");
+        ImGui.Text($"width:  {w:F2}");
+        ImGui.Text($"radius: {r:F2}");
+        ImGui.Text($"center: ({center.X:F2}, {center.Y:F2})");
+
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Peak Indicators");
+        ImGui.Separator();
+
+        bool enablePeakIndicators = _config.EnablePeakIndicators;
+        if (ImGui.Checkbox("Enable Peak Indicators", ref enablePeakIndicators))
+            _config.EnablePeakIndicators = enablePeakIndicators;
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Show peak indicators that react to audio amplitude.");
+
+        if (_config.EnablePeakIndicators)
+        {
+            float peakDropSpeed = _config.PeakDropSpeed;
+            if (ImGui.SliderFloat("Peak Drop Speed", ref peakDropSpeed, 0.01f, 100.0f))
+                _config.PeakDropSpeed = peakDropSpeed;
+        }
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Position");
