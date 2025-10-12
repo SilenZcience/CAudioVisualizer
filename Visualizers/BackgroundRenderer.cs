@@ -310,7 +310,8 @@ public class BackgroundRenderer : IVisualizer, IConfigurable
             {
                 sum += fftData[i] * fftData[i];
             }
-            audioLevel = (float)Math.Sqrt(sum / fftData.Length);
+            // arbitrary threshold to avoid weird audio clamps when no sound is present
+            audioLevel = sum > 0.03f ? (float)Math.Sqrt(sum / fftData.Length) : 0.0f;
         }
         else
         {
