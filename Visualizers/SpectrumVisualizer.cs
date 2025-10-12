@@ -248,7 +248,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             }
         }
 
-        int count = Math.Min(_config.BarCount, dataSource.Length);
+        int count = _config.BarCount;
         float centerX = _config.PositionX;
         float centerY = _config.PositionY;
 
@@ -288,7 +288,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             float theta = thetaStart - arcAngle * i / count;
 
             Vector2 start = arcAngle < 1e-3f
-                ? new Vector2(centerX - w / 2 + ((float)i / (count - 1)) * w, centerY)
+                ? new Vector2(centerX - w / 2 + (float)i / (count - 1) * w, centerY)
                 : new Vector2(center.X + r * MathF.Cos(theta), center.Y - r * MathF.Sin(theta));
             Vector2 dir = Vector2.Normalize(new Vector2(MathF.Cos(theta), -MathF.Sin(theta)));
             Vector2 end = start + dir * value;
@@ -413,7 +413,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), $"Calculated Geometry:");
         ImGui.Text($"width:  {w:F2}");
         ImGui.Text($"radius: {r:F2}");
-        ImGui.Text($"center: ({center.X:F2}, {center.Y:F2})");
+        ImGui.Text($"center: ({center.X:F2} / {center.Y:F2})");
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Peak Indicators");
