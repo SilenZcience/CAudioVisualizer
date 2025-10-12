@@ -24,6 +24,7 @@ public class AudioVisualizerWindow : GameWindow
     private float[] _waveformData = new float[BUFFER_SIZE];
     private Complex32[] _fftBuffer = new Complex32[BUFFER_SIZE];
     private float[] _fftData = new float[BUFFER_SIZE / 2]; // Only need first half of FFT
+    private static readonly float[] HannWindow = CreateHannWindow(BUFFER_SIZE);
 
     private VisualizerManager _visualizerManager = null!;
 
@@ -185,6 +186,17 @@ public class AudioVisualizerWindow : GameWindow
         }
     }
 
+    private static float[] CreateHannWindow(int size)
+    {
+        var window = new float[size];
+        for (int i = 0; i < size; i++)
+        {
+            float t = (float)i / (size - 1);
+            window[i] = 0.5f - 0.5f * MathF.Cos(2 * MathF.PI * t);
+        }
+        return window;
+    }
+
     private void ProcessAudioData()
     {
         lock (_bufferLock)
@@ -198,18 +210,40 @@ public class AudioVisualizerWindow : GameWindow
             }
         }
 
-        // Calculate FFT from waveform data
+        // If waveform is silent, set FFT data to zero
+        bool isSilent = _waveformData.All(x => MathF.Abs(x) < 0.0001f);
+        int fftLen = BUFFER_SIZE / 2;
+        if (isSilent)
+        {
+            _fftData = new float[fftLen];
+            return;
+        }
+
+        // Apply Hann window to waveform data before FFT
         for (int i = 0; i < BUFFER_SIZE; i++)
         {
-            _fftBuffer[i] = new Complex32(_waveformData[i], 0);
+            _fftBuffer[i] = new Complex32(_waveformData[i] * HannWindow[i], 0);
         }
         // Perform FFT
         Fourier.Forward(_fftBuffer, FourierOptions.Matlab);
-        // Extract magnitudes for first half (avoid mirroring)
-        for (int i = 0; i < BUFFER_SIZE / 2; i++)
-        {
-            _fftData[i] = _fftBuffer[i].Magnitude;
-        }
+
+        // // Extract magnitudes for first half (avoid mirroring)
+        // for (int i = 0; i < BUFFER_SIZE / 2; i++)
+        // {
+        //     _fftData[i] = _fftBuffer[i].Magnitude;
+        //     // _fftData[i] = MathF.Sqrt(_fftBuffer[i].Magnitude);
+        // }
+
+        // cut out silent mid frequencies ...
+        int belowThreshold = Enumerable.Range(0, fftLen)
+            .Count(i => _fftBuffer[i].Magnitude < 0.005f);
+        float cutFraction = Math.Min(0.25f, (float)belowThreshold / fftLen);
+        int cutLen = (int)(cutFraction * fftLen);
+        int midStart = (fftLen - cutLen) / 2;
+        int midEnd = midStart + cutLen;
+        _fftData = [.. Enumerable.Range(0, fftLen)
+            .Where(i => i < midStart || i >= midEnd)
+            .Select(i => _fftBuffer[i].Magnitude)];
     }
 
     protected override void OnRenderFrame(FrameEventArgs e)
