@@ -152,8 +152,8 @@ public class ConfigurationGui
             {
                 try
                 {
-                    _audioDevices = AudioDeviceManager.GetAvailableOutputDevices();
-                    _deviceNames = _audioDevices.Select(d => d.Name).ToArray();
+                    _audioDevices = AudioDeviceManager.GetAvailableAudioDevices();
+                    _deviceNames = _audioDevices.Select(d => d.DataFlow + " - " + d.Name).ToArray();
                 }
                 catch (Exception ex)
                 {

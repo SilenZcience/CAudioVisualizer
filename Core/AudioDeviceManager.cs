@@ -7,13 +7,14 @@ public class AudioDeviceInfo
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+    public string DataFlow { get; set; } = "";
     public bool IsDefault { get; set; } = false;
     public MMDevice? Device { get; set; }
 }
 
 public static class AudioDeviceManager
 {
-    public static List<AudioDeviceInfo> GetAvailableOutputDevices()
+    public static List<AudioDeviceInfo> GetAvailableAudioDevices()
     {
         var devices = new List<AudioDeviceInfo>();
 
@@ -30,6 +31,7 @@ public static class AudioDeviceManager
                     Id = defaultDevice.ID,
                     Name = $"Default - {defaultDevice.FriendlyName}",
                     IsDefault = true,
+                    DataFlow = "Playback ",
                     Device = defaultDevice
                 });
             }
@@ -39,11 +41,11 @@ public static class AudioDeviceManager
             }
 
             // Add all other render devices
-            var deviceCollection = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            var deviceOutputCollection = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
 
-            foreach (var device in deviceCollection)
+            foreach (var device in deviceOutputCollection)
             {
-                // Skip if this is already added as default
+                // Skip if already added
                 if (devices.Any(d => d.Id == device.ID))
                     continue;
 
@@ -52,6 +54,25 @@ public static class AudioDeviceManager
                     Id = device.ID,
                     Name = device.FriendlyName,
                     IsDefault = false,
+                    DataFlow = "Playback ",
+                    Device = device
+                });
+            }
+
+            var deviceInputCollection = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+
+            foreach (var device in deviceInputCollection)
+            {
+                // Skip if already added
+                if (devices.Any(d => d.Id == device.ID))
+                    continue;
+
+                devices.Add(new AudioDeviceInfo
+                {
+                    Id = device.ID,
+                    Name = device.FriendlyName,
+                    IsDefault = false,
+                    DataFlow = "Recording",
                     Device = device
                 });
             }
@@ -66,6 +87,7 @@ public static class AudioDeviceManager
                 Id = "",
                 Name = "Default Device",
                 IsDefault = true,
+                DataFlow = "Playback ",
                 Device = null
             });
         }
@@ -73,7 +95,7 @@ public static class AudioDeviceManager
         return devices;
     }
 
-    public static WasapiLoopbackCapture CreateLoopbackCapture(string deviceId)
+    public static IWaveIn CreateAudioCapture(string deviceId)
     {
         try
         {
@@ -87,12 +109,23 @@ public static class AudioDeviceManager
                 // Use specific device
                 var enumerator = new MMDeviceEnumerator();
                 var device = enumerator.GetDevice(deviceId);
-                return new WasapiLoopbackCapture(device);
+                if (device.DataFlow == DataFlow.Render)
+                {
+                    return new WasapiLoopbackCapture(device);
+                }
+                else if (device.DataFlow == DataFlow.Capture)
+                {
+                    return new WasapiCapture(device);
+                }
+                else
+                {
+                    throw new InvalidOperationException("Selected device is neither render nor capture.");
+                }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to create loopback capture for device {deviceId}: {ex.Message}");
+            Console.WriteLine($"Failed to create audio capture for device {deviceId}: {ex.Message}");
             Console.WriteLine("Falling back to default device...");
 
             // Fallback to default device

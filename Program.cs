@@ -16,7 +16,7 @@ namespace CAudioVisualizer;
 
 public class AudioVisualizerWindow : GameWindow
 {
-    private WasapiLoopbackCapture? _capture;
+    private IWaveIn? _capture;
     private readonly List<float> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private const int BUFFER_SIZE = 2048;
@@ -106,7 +106,7 @@ public class AudioVisualizerWindow : GameWindow
     {
         try
         {
-            _capture = AudioDeviceManager.CreateLoopbackCapture(_appConfig.SelectedAudioDeviceId);
+            _capture = AudioDeviceManager.CreateAudioCapture(_appConfig.SelectedAudioDeviceId);
 
             string audioDeviceInfo =
                 $"Audio Device: {_appConfig.SelectedAudioDeviceName}\n" +
