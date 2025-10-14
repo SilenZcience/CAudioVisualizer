@@ -11,7 +11,7 @@ Write-Host "=======================================================" -Foreground
 
 # Create necessary directories
 $outputDir = ".\releases"
-$sourceDir = ".\releases\installer-ready"
+$sourceDir = ".\releases\win-installer-ready"
 
 if (!(Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir | Out-Null
@@ -70,7 +70,7 @@ DefaultDirName={autopf}\CAudioVisualizer
 DefaultGroupName=CAudioVisualizer
 AllowNoIcons=yes
 OutputDir=..
-OutputBaseFilename=CAudioVisualizer-$Version-Setup
+OutputBaseFilename=CAudioVisualizer-$Version-win-Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -207,7 +207,7 @@ $compileExitCode = $LASTEXITCODE
 Set-Location $currentDir
 
 if ($compileExitCode -eq 0) {
-    $setupFile = "$outputDir\CAudioVisualizer-$Version-Setup.exe"
+    $setupFile = "$outputDir\CAudioVisualizer-$Version-win-Setup.exe"
     if (Test-Path $setupFile) {
         $setupSize = [math]::Round((Get-Item $setupFile).Length / 1MB, 2)
         Write-Host "`n✅ Inno Setup installer created successfully!" -ForegroundColor Green
