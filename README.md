@@ -186,6 +186,9 @@ Use the hotkey `F3` to open the config menu.
    <p float="left">
       <img src="https://github.com/SilenZcience/CAudioVisualizer/blob/main/img/example1.png?raw=true" width="98%"/>
    </p>
+   <p float="left">
+      <img src="https://github.com/SilenZcience/CAudioVisualizer/blob/main/img/example2.png?raw=true" width="98%"/>
+   </p>
 
 </details>
 </br>
