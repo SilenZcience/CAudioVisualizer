@@ -422,8 +422,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         bool enablePeakIndicators = _config.EnablePeakIndicators;
         if (ImGui.Checkbox("Enable Peak Indicators", ref enablePeakIndicators))
             _config.EnablePeakIndicators = enablePeakIndicators;
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Show peak indicators that react to audio amplitude.");
 
         if (_config.EnablePeakIndicators)
         {
