@@ -31,8 +31,8 @@ public class WaveformConfig
     public float FadeSpeed { get; set; } = 0.95f;
     public int TrailLength { get; set; } = 20;
     public bool UseFFT { get; set; } = false;
-    public bool FlipV { get; set; } = false;
-    public bool FlipH { get; set; } = false;
+    public bool MirrorH { get; set; } = false;
+    public bool MirrorV { get; set; } = false;
 }
 
 public class WaveformVisualizer : IVisualizer, IConfigurable
@@ -256,8 +256,8 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         // Generate waveform points
         for (int x = 0; x < waveformWidth; x++)
         {
-            // Handle flipV option
-            int actualX = _config.FlipV ? (waveformWidth - 1 - x) : x;
+            // Handle MirrorH option
+            int actualX = _config.MirrorH ? (waveformWidth - 1 - x) : x;
 
             // Calculate sample index with interpolation for smoother curves
             float exactIndex = actualX * (dataSource.Length / (float)waveformWidth);
@@ -267,7 +267,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             float scaledSample = dataSource[sampleIndex] * _config.Amplitude;
 
             // Apply horizontal flip if enabled (invert amplitude)
-            if (_config.FlipH)
+            if (_config.MirrorV)
                 scaledSample = -scaledSample;
 
             float y = centerY - scaledSample;
@@ -345,23 +345,13 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         if (ImGui.SliderFloat("Line Thickness", ref lineThickness, 1.0f, 10.0f))
             _config.LineThickness = lineThickness;
 
-        bool flipV = _config.FlipV;
-        if (ImGui.Checkbox("Flip Waveform Vertically", ref flipV))
-            _config.FlipV = flipV;
+        bool mirrorH = _config.MirrorH;
+        if (ImGui.Checkbox("Mirrors Waveform Horizontally", ref mirrorH))
+            _config.MirrorH = mirrorH;
 
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip("Flips the waveform vertically (left <-> right).");
-        }
-
-        bool flipH = _config.FlipH;
-        if (ImGui.Checkbox("Flip Waveform Horizontally", ref flipH))
-            _config.FlipH = flipH;
-
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip("Flips the waveform horizontally (up <-> down).");
-        }
+        bool mirrorV = _config.MirrorV;
+        if (ImGui.Checkbox("Mirrors Waveform Vertically", ref mirrorV))
+            _config.MirrorV = mirrorV;
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Position");
