@@ -229,22 +229,19 @@ public class ConfigurationGui
                 _window?.SwitchToMonitor(currentMonitor);
             }
 
-            bool spanAllMonitors = _appConfig.SpanAllMonitors;
-            if (ImGui.Checkbox("Span across all monitors", ref spanAllMonitors))
+            if (monitors.Count > 1)
             {
-                _appConfig.SpanAllMonitors = spanAllMonitors;
-                _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
-            }
-
-            if (monitors.Count <= 1)
-            {
-                ImGui.SameLine();
-                ImGui.TextColored(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f), "Multi-monitor spanning requires 2+ monitors");
-            }
-            else if (_appConfig.SpanAllMonitors)
-            {
-                ImGui.SameLine();
-                ImGui.TextColored(new System.Numerics.Vector4(0.0f, 1.0f, 0.0f, 1.0f), $"Spanning across {monitors.Count} monitors");
+                bool spanAllMonitors = _appConfig.SpanAllMonitors;
+                if (ImGui.Checkbox("Span across all monitors", ref spanAllMonitors))
+                {
+                    _appConfig.SpanAllMonitors = spanAllMonitors;
+                    _window?.SwitchToMonitor(_appConfig.SelectedMonitorIndex);
+                }
+                if (_appConfig.SpanAllMonitors)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextColored(new System.Numerics.Vector4(0.0f, 1.0f, 0.0f, 1.0f), $"Spanning across {monitors.Count} monitors");
+                }
             }
 
             ImGui.EndTabItem();
