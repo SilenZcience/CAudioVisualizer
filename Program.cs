@@ -155,6 +155,9 @@ public class AudioVisualizerWindow : GameWindow
                 _audioBuffer.Clear();
             }
 
+            _waveformData = new float[BUFFER_SIZE];
+            _fftData = new float[BUFFER_SIZE / 2];
+
             SetupAudioCapture();
 
             Console.WriteLine($"Switched to audio device: {deviceName}");
