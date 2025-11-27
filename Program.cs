@@ -301,15 +301,27 @@ public class AudioVisualizerWindow : GameWindow
         _imGuiController?.PressChar((char)e.Unicode);
     }
 
+    protected override void OnKeyDown(KeyboardKeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        _imGuiController?.OnKeyDown(e.Key);
+    }
+
+    protected override void OnKeyUp(KeyboardKeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        _imGuiController?.OnKeyUp(e.Key);
+    }
+
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
         _imGuiController?.MouseScroll(e.Offset);
     }
 
-    protected override void OnUnload()
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        base.OnUnload();
+        base.OnClosing(e);
 
         // Force ImGui to save its settings before shutdown
         ImGuiNET.ImGui.SaveIniSettingsToDisk(CAudioVisualizer.Configuration.AppConfig.GetImGuiConfigPath());
@@ -319,6 +331,11 @@ public class AudioVisualizerWindow : GameWindow
             _visualizerManager.SaveVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
             _appConfig.SaveConfiguration(CAudioVisualizer.Configuration.AppConfig.GetConfigFilePath());
         }
+    }
+
+    protected override void OnUnload()
+    {
+        base.OnUnload();
 
         _capture?.StopRecording();
         _capture?.Dispose();
