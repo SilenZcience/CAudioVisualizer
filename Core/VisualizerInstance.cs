@@ -9,6 +9,7 @@ public class VisualizerInstance
     public string TypeName { get; }
     public string DisplayName { get; set; }
     public IVisualizer Visualizer { get; }
+    public DateTime CreatedAt { get; } = DateTime.Now;
 
     public VisualizerInstance(string typeNam, IVisualizer visualizer, int instanceNumber = 1)
     {
@@ -35,6 +36,7 @@ public static class VisualizerFactory
         { "Circle", "Circle Visualizer" },
         { "Waveform", "Waveform Visualizer" },
         { "Spectrum", "Spectrum Visualizer" },
+        { "CustomShader", "CustomShader Visualizer" },
         { "Debug", "Debug Info Visualizer" }
     };
 
@@ -46,6 +48,7 @@ public static class VisualizerFactory
             "Circle" => new CircleVisualizer(),
             "Waveform" => new WaveformVisualizer(),
             "Spectrum" => new SpectrumVisualizer(),
+            "CustomShader" => new CustomShaderVisualizer(),
             "Debug" => new DebugInfoVisualizer(),
             _ => null
         };
