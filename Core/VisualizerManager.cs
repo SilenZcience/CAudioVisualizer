@@ -28,8 +28,6 @@ public class VisualizerManager : IDisposable
             debugVisualizer.SetInstanceDisplayName(instance.DisplayName);
         }
 
-        instance.Visualizer.Initialize();
-
         Console.WriteLine($"Registered visualizer instance: {instance.DisplayName} ({instance.InstanceId})");
     }
 
@@ -49,7 +47,7 @@ public class VisualizerManager : IDisposable
     {
         _backgroundRenderer?.Update(waveformData, fftData, deltaTime);
 
-        foreach (var instance in _instances.Values)
+        foreach (var instance in _instances.Values.OrderBy(i => i.CreatedAt))
         {
             if (instance.Visualizer.IsEnabled)
             {
@@ -67,7 +65,7 @@ public class VisualizerManager : IDisposable
 
         _backgroundRenderer?.Render(projection);
 
-        foreach (var instance in _instances.Values)
+        foreach (var instance in _instances.Values.OrderBy(i => i.CreatedAt))
         {
             if (instance.Visualizer.IsEnabled)
             {
@@ -156,22 +154,20 @@ public class VisualizerManager : IDisposable
         // Initialize background renderer
         _backgroundRenderer = new BackgroundRenderer();
         _backgroundRenderer.SetVisualizerManager(this);
-        _backgroundRenderer.Initialize();
-
         if (configs.TryGetValue("Background", out var backgroundConfig))
         {
             _backgroundRenderer.LoadConfiguration(backgroundConfig);
         }
+        _backgroundRenderer.Initialize();
 
         // Initialize post-processing renderer
         _postProcessingRenderer = new PostProcessingRenderer();
         _postProcessingRenderer.SetVisualizerManager(this);
-        _postProcessingRenderer.Initialize();
-
         if (configs.TryGetValue("PostProcessing", out var postProcessingConfig))
         {
             _postProcessingRenderer.LoadConfiguration(postProcessingConfig);
         }
+        _postProcessingRenderer.Initialize();
 
         // Recreate instances from configuration keys (skip "Background" key)
         foreach (var instanceId in configs.Keys)
@@ -222,6 +218,12 @@ public class VisualizerManager : IDisposable
                     Console.WriteLine($"Failed to load configuration for {instanceId}: {ex.Message}");
                 }
             }
+        }
+
+        // Initialize all visualizers
+        foreach (var kvp in _instances)
+        {
+            kvp.Value.Visualizer.Initialize();
         }
     }
 

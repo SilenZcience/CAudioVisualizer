@@ -326,7 +326,7 @@ public class ConfigurationGui
         ImGui.Text("Current Instances:");
         var instances = _visualizerManager.GetAllInstances();
 
-        foreach (var instance in instances.Values)
+        foreach (var instance in instances.Values.OrderBy(i => i.CreatedAt))
         {
             ImGui.BulletText($"{instance.DisplayName} - {(instance.Visualizer.IsEnabled ? "Enabled" : "Disabled")}");
             ImGui.SameLine();
