@@ -322,15 +322,6 @@ void main()
 
         GL.UseProgram(_shaderProgram);
         GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
 
         GL.UniformMatrix4(_projectionLocation, false, ref projection);
         GL.Uniform1(_timeLocation, _time);
