@@ -11,7 +11,12 @@ public class VisualizerManager : IDisposable
     private BackgroundRenderer? _backgroundRenderer;
     private PostProcessingRenderer? _postProcessingRenderer;
 
-    public void RegisterVisualizerInstance(VisualizerInstance instance)
+    public VisualizerManager(Vector2i initialWindowSize)
+    {
+        _currentWindowSize = initialWindowSize;
+    }
+
+    public void RegisterVisualizerInstance(VisualizerInstance instance, bool initialize = true)
     {
         if (_instances.ContainsKey(instance.InstanceId))
         {
@@ -26,6 +31,12 @@ public class VisualizerManager : IDisposable
         if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
         {
             debugVisualizer.SetInstanceDisplayName(instance.DisplayName);
+        }
+
+        // Initialize immediately when created dynamically (not during config load)
+        if (initialize)
+        {
+            instance.Visualizer.Initialize();
         }
 
         Console.WriteLine($"Registered visualizer instance: {instance.DisplayName} ({instance.InstanceId})");
@@ -179,7 +190,7 @@ public class VisualizerManager : IDisposable
                 var instance = CreateInstanceFromId(instanceId);
                 if (instance != null)
                 {
-                    RegisterVisualizerInstance(instance);
+                    RegisterVisualizerInstance(instance, initialize: false);
                 }
             }
         }
@@ -192,7 +203,7 @@ public class VisualizerManager : IDisposable
                 var instance = CreateInstanceFromId(instanceId);
                 if (instance != null)
                 {
-                    RegisterVisualizerInstance(instance);
+                    RegisterVisualizerInstance(instance, initialize: false);
                 }
             }
         }

@@ -85,7 +85,7 @@ public class AudioVisualizerWindow : GameWindow
             _appConfig.SelectedAudioDeviceName = AudioDeviceManager.GetDeviceName(_appConfig.SelectedAudioDeviceId);
         }
 
-        _visualizerManager = new VisualizerManager();
+        _visualizerManager = new VisualizerManager(ClientSize);
         _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
 
         _configGui = new ConfigurationGui(_visualizerManager, _appConfig, ApplyConfigurationSettings, this);
