@@ -155,6 +155,13 @@ void main()
             _config.FragmentShaderSource = DefaultFragmentShaderSource;
         }
 
+        var windowSize = CurrentWindowSize;
+
+        if (_config.PositionX == -1)
+            _config.PositionX = windowSize.X / 2;
+        if (_config.PositionY == -1)
+            _config.PositionY = windowSize.Y / 2;
+
         string vertexShaderSource = @"
             #version 330 core
             layout(location = 0) in vec3 aPosition;
@@ -287,18 +294,13 @@ void main()
     {
         if (!IsEnabled || !_initialized || _hasShaderError || _shaderProgram == 0) return;
 
-        var windowSize = CurrentWindowSize;
-
-        if (_config.PositionX == -1)
-            _config.PositionX = windowSize.X / 2;
-        if (_config.PositionY == -1)
-            _config.PositionY = windowSize.Y / 2;
 
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
         if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
-        // Only update vertices if window size changed
+        var windowSize = CurrentWindowSize;
+        // Only update if window size changed
         if (windowSize != _lastWindowSize)
         {
             _vertices[0] = 0f; _vertices[1] = 0f; _vertices[2] = 0f;
@@ -441,8 +443,12 @@ void main()
 
         ImGui.Spacing();
 
+        // Calculate available space for the text editor
+        float availableHeight = ImGui.GetContentRegionAvail().Y - 60; // Reserve space for buttons below
+        float editorHeight = Math.Max(300, availableHeight); // Minimum 300, but expand if more space available
+
         string shaderSource = _config.FragmentShaderSource;
-        if (ImGui.InputTextMultiline("##FragmentShader", ref shaderSource, 10000, new System.Numerics.Vector2(-1, 300)))
+        if (ImGui.InputTextMultiline("##FragmentShader", ref shaderSource, 10000, new System.Numerics.Vector2(-1, editorHeight)))
         {
             if (shaderSource != _config.FragmentShaderSource)
             {
