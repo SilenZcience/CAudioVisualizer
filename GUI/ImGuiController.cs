@@ -57,17 +57,42 @@ public class ImGuiController : IDisposable
 
     private void InitializeKeyMap()
     {
+        // Modifier keys
+        _keyMap[Keys.LeftControl] = ImGuiKey.LeftCtrl;
+        _keyMap[Keys.RightControl] = ImGuiKey.RightCtrl;
+        _keyMap[Keys.LeftShift] = ImGuiKey.LeftShift;
+        _keyMap[Keys.RightShift] = ImGuiKey.RightShift;
+        _keyMap[Keys.LeftAlt] = ImGuiKey.LeftAlt;
+        _keyMap[Keys.RightAlt] = ImGuiKey.RightAlt;
+        _keyMap[Keys.LeftSuper] = ImGuiKey.LeftSuper;
+        _keyMap[Keys.RightSuper] = ImGuiKey.RightSuper;
+
         // Navigation keys
         _keyMap[Keys.Tab] = ImGuiKey.Tab;
         _keyMap[Keys.Left] = ImGuiKey.LeftArrow;
         _keyMap[Keys.Right] = ImGuiKey.RightArrow;
         _keyMap[Keys.Up] = ImGuiKey.UpArrow;
         _keyMap[Keys.Down] = ImGuiKey.DownArrow;
+        _keyMap[Keys.PageUp] = ImGuiKey.PageUp;
+        _keyMap[Keys.PageDown] = ImGuiKey.PageDown;
+        _keyMap[Keys.Home] = ImGuiKey.Home;
+        _keyMap[Keys.End] = ImGuiKey.End;
+        _keyMap[Keys.Insert] = ImGuiKey.Insert;
+
         // Editing keys
         _keyMap[Keys.Delete] = ImGuiKey.Delete;
         _keyMap[Keys.Backspace] = ImGuiKey.Backspace;
         _keyMap[Keys.Space] = ImGuiKey.Space;
         _keyMap[Keys.Enter] = ImGuiKey.Enter;
+        _keyMap[Keys.Escape] = ImGuiKey.Escape;
+
+        // Standard text editing shortcuts
+        _keyMap[Keys.A] = ImGuiKey.A;
+        _keyMap[Keys.C] = ImGuiKey.C;
+        _keyMap[Keys.V] = ImGuiKey.V;
+        _keyMap[Keys.X] = ImGuiKey.X;
+        _keyMap[Keys.Y] = ImGuiKey.Y;
+        _keyMap[Keys.Z] = ImGuiKey.Z;
     }
 
     public void WindowResized(int width, int height)
@@ -214,21 +239,45 @@ void main()
         var screenPoint = new Vector2i((int)mouseState.X, (int)mouseState.Y);
         io.MousePos = new System.Numerics.Vector2(screenPoint.X, screenPoint.Y);
 
-        // Handle modifier keys
-        io.KeyCtrl = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
-        io.KeyAlt = keyboardState.IsKeyDown(Keys.LeftAlt) || keyboardState.IsKeyDown(Keys.RightAlt);
-        io.KeyShift = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
-        io.KeySuper = keyboardState.IsKeyDown(Keys.LeftSuper) || keyboardState.IsKeyDown(Keys.RightSuper);
-        foreach (var kvp in _keyMap)
-        {
-            bool isDown = keyboardState.IsKeyDown(kvp.Key);
-            io.AddKeyEvent(kvp.Value, isDown);
-        }
+        // Update modifier key states (both legacy and modern API)
+        bool ctrlDown = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
+        bool altDown = keyboardState.IsKeyDown(Keys.LeftAlt) || keyboardState.IsKeyDown(Keys.RightAlt);
+        bool shiftDown = keyboardState.IsKeyDown(Keys.LeftShift) || keyboardState.IsKeyDown(Keys.RightShift);
+        bool superDown = keyboardState.IsKeyDown(Keys.LeftSuper) || keyboardState.IsKeyDown(Keys.RightSuper);
+
+        io.KeyCtrl = ctrlDown;
+        io.KeyAlt = altDown;
+        io.KeyShift = shiftDown;
+        io.KeySuper = superDown;
+
+        // Also update modern modifier key events
+        io.AddKeyEvent(ImGuiKey.ModCtrl, ctrlDown);
+        io.AddKeyEvent(ImGuiKey.ModAlt, altDown);
+        io.AddKeyEvent(ImGuiKey.ModShift, shiftDown);
+        io.AddKeyEvent(ImGuiKey.ModSuper, superDown);
     }
 
     internal void PressChar(char keyChar)
     {
         ImGui.GetIO().AddInputCharacter(keyChar);
+    }
+
+    internal void OnKeyDown(Keys key)
+    {
+        var io = ImGui.GetIO();
+        if (_keyMap.TryGetValue(key, out ImGuiKey imguiKey))
+        {
+            io.AddKeyEvent(imguiKey, true);
+        }
+    }
+
+    internal void OnKeyUp(Keys key)
+    {
+        var io = ImGui.GetIO();
+        if (_keyMap.TryGetValue(key, out ImGuiKey imguiKey))
+        {
+            io.AddKeyEvent(imguiKey, false);
+        }
     }
 
     internal void MouseScroll(Vector2 offset)
