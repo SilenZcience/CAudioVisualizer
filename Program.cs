@@ -117,13 +117,7 @@ public class AudioVisualizerWindow : GameWindow
 
             Console.WriteLine(audioDeviceInfo.Replace("\n", Environment.NewLine));
 
-            foreach (var instance in _visualizerManager.GetAllInstances().Values)
-            {
-                if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
-                {
-                    debugVisualizer.SetAudioDeviceInfo(audioDeviceInfo);
-                }
-            }
+            _visualizerManager.SetAudioDeviceInfo(audioDeviceInfo);
 
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += (s, e) => Console.WriteLine("Recording stopped");

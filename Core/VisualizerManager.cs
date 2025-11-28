@@ -10,6 +10,7 @@ public class VisualizerManager : IDisposable
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
     private BackgroundRenderer? _backgroundRenderer;
     private PostProcessingRenderer? _postProcessingRenderer;
+    private string _audioDeviceInfo = "";
 
     public VisualizerManager(Vector2i initialWindowSize)
     {
@@ -31,6 +32,11 @@ public class VisualizerManager : IDisposable
         if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
         {
             debugVisualizer.SetInstanceDisplayName(instance.DisplayName);
+
+            if (!string.IsNullOrEmpty(_audioDeviceInfo))
+            {
+                debugVisualizer.SetAudioDeviceInfo(_audioDeviceInfo);
+            }
         }
 
         // Initialize immediately when created dynamically (not during config load)
@@ -90,6 +96,20 @@ public class VisualizerManager : IDisposable
     public Vector2i GetCurrentWindowSize()
     {
         return _currentWindowSize;
+    }
+
+    public void SetAudioDeviceInfo(string audioDeviceInfo)
+    {
+        _audioDeviceInfo = audioDeviceInfo;
+
+        // Update all existing DebugInfoVisualizers
+        foreach (var instance in _instances.Values)
+        {
+            if (instance.Visualizer is DebugInfoVisualizer debugVisualizer)
+            {
+                debugVisualizer.SetAudioDeviceInfo(audioDeviceInfo);
+            }
+        }
     }
 
     public BackgroundRenderer? GetBackgroundRenderer()
@@ -252,12 +272,6 @@ public class VisualizerManager : IDisposable
 
         var displayName = instanceNumber == 1 ? typeName : $"{typeName} {instanceNumber}";
         var instance = new VisualizerInstance(instanceId, typeName, displayName, visualizer);
-
-        // Set instance display name for visualizers that need unique identification
-        if (visualizer is DebugInfoVisualizer debugVisualizer)
-        {
-            debugVisualizer.SetInstanceDisplayName(displayName);
-        }
 
         return instance;
     }
