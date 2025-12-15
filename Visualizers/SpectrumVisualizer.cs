@@ -282,7 +282,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             {
                 _peakPositions[i] -= _config.PeakDropSpeed;
                 _peakPositions[i] = Math.Max(_peakPositions[i], value);
-                _peakPositions[i] = Math.Max(_peakPositions[i], 0);
+                _peakPositions[i] = Math.Clamp(_peakPositions[i], 0, Math.Max(CurrentWindowSize.Y*2, CurrentWindowSize.X));
             }
 
             float theta = thetaStart - arcAngle * i / count;
