@@ -43,6 +43,8 @@ public class AudioVisualizerWindow : GameWindow
     private AppConfig _appConfig = null!;
     private bool _showConfigWindow = false;
 
+    private WindowState _lastWindowState = WindowState.Normal;
+
     public AudioVisualizerWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings)
         : base(gameWindowSettings, nativeWindowSettings)
     {
@@ -296,9 +298,21 @@ public class AudioVisualizerWindow : GameWindow
 
     protected override void OnResize(ResizeEventArgs e)
     {
+        Console.WriteLine($"Window resized: {e.Width}x{e.Height}");
         base.OnResize(e);
-        GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
-        _imGuiController?.WindowResized(ClientSize.X, ClientSize.Y);
+        if (WindowState != WindowState.Minimized)
+        {
+            Console.WriteLine($"Window restored: {ClientSize.X}x{ClientSize.Y}");
+            if (_lastWindowState == WindowState.Minimized)
+            {
+                Console.WriteLine("Restoring visualizers after minimize...");
+                // Re-initialize all visualizers to restore them after minimize
+                _visualizerManager.LoadVisualizerConfigurations(_appConfig.VisualizerConfigs, _appConfig.EnabledVisualizers);
+            }
+            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+            _imGuiController?.WindowResized(ClientSize.X, ClientSize.Y);
+        }
+        _lastWindowState = WindowState;
     }
 
     protected override void OnTextInput(TextInputEventArgs e)
