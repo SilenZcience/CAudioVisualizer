@@ -48,9 +48,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     }
 
     private SpectrumConfig _config = new();
-    private int _vertexBufferObject;
-    private int _vertexArrayObject;
-    private int _shaderProgram;
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
@@ -58,7 +55,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     private readonly List<float> _mainVertexBuffer = new();
     private VisualizerManager? _visualizerManager;
 
-    private int _projectionLocation = -1;
     private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
@@ -73,69 +69,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     public void Initialize()
     {
         if (_initialized) return;
-        SetupShaders();
-        SetupVertexData();
         _initialized = true;
-    }
-
-    private void SetupShaders()
-    {
-        string vertexShaderSource = @"
-            #version 330 core
-            layout(location = 0) in vec3 aPosition;
-            layout(location = 1) in vec4 aColor;
-
-            uniform mat4 projection;
-            out vec4 vertexColor;
-
-            void main()
-            {
-                gl_Position = projection * vec4(aPosition, 1.0);
-                vertexColor = aColor;
-            }";
-
-        string fragmentShaderSource = @"
-            #version 330 core
-            in vec4 vertexColor;
-            out vec4 FragColor;
-
-            void main()
-            {
-                FragColor = vertexColor;
-            }";
-
-        int vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, vertexShaderSource);
-        GL.CompileShader(vertexShader);
-
-        int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, fragmentShaderSource);
-        GL.CompileShader(fragmentShader);
-
-        _shaderProgram = GL.CreateProgram();
-        GL.AttachShader(_shaderProgram, vertexShader);
-        GL.AttachShader(_shaderProgram, fragmentShader);
-        GL.LinkProgram(_shaderProgram);
-
-        _projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
-
-        GL.DeleteShader(vertexShader);
-        GL.DeleteShader(fragmentShader);
-    }
-
-    private void SetupVertexData()
-    {
-        _vertexArrayObject = GL.GenVertexArray();
-        _vertexBufferObject = GL.GenBuffer();
-
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), 0);
-        GL.EnableVertexAttribArray(0);
-
-        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 7 * sizeof(float), 3 * sizeof(float));
-        GL.EnableVertexAttribArray(1);
     }
 
     public void Update(float[] audioData, float[] fftData, double deltaTime)
@@ -155,13 +89,10 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         if (_config.PositionY == -1)
             _config.PositionY = windowSize.Y / 2;
 
-        GL.UseProgram(_shaderProgram);
-        GL.UniformMatrix4(_projectionLocation, false, ref projection);
-
         if (_config.EnableFadeTrail)
         {
             UpdateTrailFrames();
-            RenderTrailFrames();
+            RenderTrailFrames(ref projection);
         }
         else
         {
@@ -172,7 +103,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
                            _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
             if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
-            RenderSpectrum(currentFrame.Vertices, currentFrame.BarWidth, color);
+            RenderSpectrum(currentFrame.Vertices, currentFrame.BarWidth, color, ref projection);
         }
     }
 
@@ -195,18 +126,19 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private void RenderTrailFrames()
+    private void RenderTrailFrames(ref Matrix4 projection)
     {
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        GL.BindVertexArray(_vertexArrayObject);
+
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
             if (frame.Vertices.Count == 0) continue;
             var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
-            RenderSpectrum(fadedVertices, frame.BarWidth, frame.Color);
+            RenderSpectrum(fadedVertices, frame.BarWidth, frame.Color, ref projection);
         }
+
         GL.Disable(EnableCap.Blend);
     }
 
@@ -354,21 +286,13 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         return _tempVertexBuffer;
     }
 
-    private void RenderSpectrum(List<float> vertices, float barWidth, Vector3 color)
+    private void RenderSpectrum(List<float> vertices, float barWidth, Vector3 color, ref Matrix4 projection)
     {
         if (vertices.Count == 0) return;
 
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-        var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
-        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
-        GL.LineWidth(barWidth);
-        GL.Enable(EnableCap.LineSmooth);
-        GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
-        GL.DrawArrays(PrimitiveType.Lines, 0, vertices.Count / 7);
-
-        GL.LineWidth(1.0f);
-        GL.Disable(EnableCap.LineSmooth);
+        // Widths > 1 are always expanded into triangles with antialiased edges (the
+        // driver-reported width range is not trustworthy).
+        ThickLineRenderer.Instance.Draw(ThickLineMode.Lines, vertices, barWidth, true, ref projection);
     }
 
     public void RenderConfigGui()
@@ -565,9 +489,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     public void Dispose()
     {
         if (!_initialized) return;
-        GL.DeleteBuffer(_vertexBufferObject);
-        GL.DeleteVertexArray(_vertexArrayObject);
-        GL.DeleteProgram(_shaderProgram);
         _initialized = false;
     }
 }

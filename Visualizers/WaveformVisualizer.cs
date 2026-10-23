@@ -44,16 +44,12 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     }
 
     private WaveformConfig _config = new();
-    private int _vertexBufferObject;
-    private int _vertexArrayObject;
-    private int _shaderProgram;
     private bool _initialized = false;
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
     private List<WaveformFrame> _trailFrames = new();
     private VisualizerManager? _visualizerManager;
 
-    private int _projectionLocation = -1;
     private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
@@ -67,76 +63,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         if (_initialized) return;
 
-        SetupShaders();
-        SetupVertexData();
         _initialized = true;
-    }
-
-    private void SetupShaders()
-    {
-        string vertexShaderSource = @"
-            #version 330 core
-            layout(location = 0) in vec3 aPosition;
-            layout(location = 1) in vec4 aColor;
-
-            uniform mat4 projection;
-            out vec4 vertexColor;
-
-            void main()
-            {
-                gl_Position = projection * vec4(aPosition, 1.0);
-                vertexColor = aColor;
-            }";
-
-        string fragmentShaderSource = @"
-            #version 330 core
-
-            in vec4 vertexColor;
-            out vec4 FragColor;
-
-            void main()
-            {
-                FragColor = vertexColor;
-            }";
-
-        // Create and compile shaders
-        int vertexShader = GL.CreateShader(ShaderType.VertexShader);
-        GL.ShaderSource(vertexShader, vertexShaderSource);
-        GL.CompileShader(vertexShader);
-
-        int fragmentShader = GL.CreateShader(ShaderType.FragmentShader);
-        GL.ShaderSource(fragmentShader, fragmentShaderSource);
-        GL.CompileShader(fragmentShader);
-
-        // Create shader program
-        _shaderProgram = GL.CreateProgram();
-        GL.AttachShader(_shaderProgram, vertexShader);
-        GL.AttachShader(_shaderProgram, fragmentShader);
-        GL.LinkProgram(_shaderProgram);
-
-        _projectionLocation = GL.GetUniformLocation(_shaderProgram, "projection");
-
-        // Clean up shader objects
-        GL.DeleteShader(vertexShader);
-        GL.DeleteShader(fragmentShader);
-    }
-
-    private void SetupVertexData()
-    {
-        // Generate buffers
-        _vertexArrayObject = GL.GenVertexArray();
-        _vertexBufferObject = GL.GenBuffer();
-
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-
-        // Position attribute
-        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 7 * sizeof(float), 0);
-        GL.EnableVertexAttribArray(0);
-
-        // Color attribute (RGBA)
-        GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 7 * sizeof(float), 3 * sizeof(float));
-        GL.EnableVertexAttribArray(1);
     }
 
     public void Update(float[] audioData, float[] fftData, double deltaTime)
@@ -157,22 +84,18 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         if (_config.EndX == -1)
             _config.EndX = windowSize.X;
 
-        GL.UseProgram(_shaderProgram);
-
-        GL.UniformMatrix4(_projectionLocation, false, ref projection);
-
         if (_config.EnableFadeTrail)
         {
             UpdateTrailFrames();
-            RenderTrailFrames();
+            RenderTrailFrames(ref projection);
         }
         else
         {
             var currentWaveform = GenerateCurrentWaveform();
             if (currentWaveform.Vertices.Count == 0) return;
 
-            // Upload vertex data and render
-            RenderWaveform(currentWaveform.Vertices, currentWaveform.LineWidth);
+            // Render the waveform
+            RenderWaveform(currentWaveform.Vertices, currentWaveform.LineWidth, ref projection);
         }
     }
 
@@ -201,12 +124,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private void RenderTrailFrames()
+    private void RenderTrailFrames(ref Matrix4 projection)
     {
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
-        GL.BindVertexArray(_vertexArrayObject);
 
         // Render trail frames from oldest to newest (so newest appears on top)
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
@@ -217,7 +138,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Apply alpha to vertices
             var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
 
-            RenderWaveform(fadedVertices, frame.LineWidth);
+            RenderWaveform(fadedVertices, frame.LineWidth, ref projection);
         }
 
         GL.Disable(EnableCap.Blend);
@@ -310,26 +231,13 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         return _tempVertexBuffer;
     }
 
-    private void RenderWaveform(List<float> vertices, float lineWidth)
+    private void RenderWaveform(List<float> vertices, float lineWidth, ref Matrix4 projection)
     {
         if (vertices.Count == 0) return;
 
-        // Upload vertex data
-        GL.BindVertexArray(_vertexArrayObject);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-
-        var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
-        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
-
-        GL.LineWidth(lineWidth);
-        GL.Enable(EnableCap.LineSmooth);
-        GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
-
-        // Draw waveform as line strip
-        GL.DrawArrays(PrimitiveType.LineStrip, 0, vertices.Count / 7); // 7 floats per vertex (3 pos + 4 color)
-
-        GL.LineWidth(1.0f);
-        GL.Disable(EnableCap.LineSmooth);
+        // Widths > 1 are always expanded into triangles with antialiased edges (the
+        // driver-reported width range is not trustworthy).
+        ThickLineRenderer.Instance.Draw(ThickLineMode.LineStrip, vertices, lineWidth, true, ref projection);
     }
 
     public void RenderConfigGui()
@@ -506,9 +414,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         if (!_initialized) return;
 
-        GL.DeleteBuffer(_vertexBufferObject);
-        GL.DeleteVertexArray(_vertexArrayObject);
-        GL.DeleteProgram(_shaderProgram);
         _initialized = false;
     }
 }

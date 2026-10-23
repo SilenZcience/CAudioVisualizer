@@ -168,7 +168,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         if (_config.EnableFadeTrail)
         {
             UpdateTrailFrames();
-            RenderTrailFrames();
+            RenderTrailFrames(ref projection);
         }
         else
         {
@@ -176,21 +176,22 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
             if (vertices.Count == 0) return;
 
-            // Upload vertex data
-            GL.BindVertexArray(_vertexArrayObject);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-
-            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
-            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
-
             if (_config.Filled)
             {
+                // Upload vertex data
+                GL.BindVertexArray(_vertexArrayObject);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
+
+                var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices);
+                GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
+
                 GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             }
             else
             {
-                GL.LineWidth(_config.LineThickness);
-                GL.DrawArrays(PrimitiveType.LineLoop, 0, 3);
+                // Widths > 1 are always expanded into triangles (the driver-reported
+                // width range is not trustworthy); no feathering for the triangle.
+                ThickLineRenderer.Instance.Draw(ThickLineMode.LineLoop, vertices, _config.LineThickness, false, ref projection);
             }
         }
     }
@@ -219,12 +220,10 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private void RenderTrailFrames()
+    private void RenderTrailFrames(ref Matrix4 projection)
     {
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
-        GL.BindVertexArray(_vertexArrayObject);
 
         // Draw triangles in reverse order (oldest first, newest last)
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
@@ -244,19 +243,21 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
                 _tempVertexBuffer.Add(frame.Alpha); // Use alpha for transparency
             }
 
-            // Upload and draw
-            GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
-            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_tempVertexBuffer);
-            GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
-
             if (frame.Filled)
             {
+                // Re-bind this visualizer's own program/VAO: a line draw above may have
+                // bound the ThickLineRenderer's state.
+                GL.UseProgram(_shaderProgram);
+                GL.BindVertexArray(_vertexArrayObject);
+                GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBufferObject);
+                var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_tempVertexBuffer);
+                GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
+
                 GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             }
             else
             {
-                GL.LineWidth(frame.LineWidth);
-                GL.DrawArrays(PrimitiveType.LineLoop, 0, 3);
+                ThickLineRenderer.Instance.Draw(ThickLineMode.LineLoop, _tempVertexBuffer, frame.LineWidth, false, ref projection);
             }
         }
 
