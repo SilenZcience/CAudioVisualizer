@@ -1,5 +1,5 @@
-using NAudio.Wave;
 using NAudio.CoreAudioApi;
+using NAudio.Wave;
 
 namespace CAudioVisualizer.Core;
 
@@ -9,12 +9,37 @@ public class AudioDeviceInfo
     public string Name { get; set; } = "";
     public string DataFlow { get; set; } = "";
     public bool IsDefault { get; set; } = false;
-    public MMDevice? Device { get; set; }
 }
 
 public static class AudioDeviceManager
 {
     public static List<AudioDeviceInfo> GetAvailableAudioDevices()
+    {
+        if (OperatingSystem.IsWindows())
+            return GetAvailableAudioDevicesWasapi();
+
+        return GetAvailableAudioDevicesPulse();
+    }
+
+    public static IAudioCapture? CreateAudioCapture(string deviceId)
+    {
+        if (OperatingSystem.IsWindows())
+            return CreateAudioCaptureWasapi(deviceId);
+
+        return PulseAudioClient.TryCreateCapture(deviceId, GetDeviceName(deviceId));
+    }
+
+    public static string GetDeviceName(string deviceId)
+    {
+        if (OperatingSystem.IsWindows())
+            return GetDeviceNameWasapi(deviceId);
+
+        return GetDeviceNamePulse(deviceId);
+    }
+
+    #region Windows (WASAPI)
+
+    private static List<AudioDeviceInfo> GetAvailableAudioDevicesWasapi()
     {
         var devices = new List<AudioDeviceInfo>();
 
@@ -31,8 +56,7 @@ public static class AudioDeviceManager
                     Id = defaultDevice.ID,
                     Name = $"Default - {defaultDevice.FriendlyName}",
                     IsDefault = true,
-                    DataFlow = "Playback ",
-                    Device = defaultDevice
+                    DataFlow = "Playback "
                 });
             }
             catch (Exception ex)
@@ -54,8 +78,7 @@ public static class AudioDeviceManager
                     Id = device.ID,
                     Name = device.FriendlyName,
                     IsDefault = false,
-                    DataFlow = "Playback ",
-                    Device = device
+                    DataFlow = "Playback "
                 });
             }
 
@@ -72,8 +95,7 @@ public static class AudioDeviceManager
                     Id = device.ID,
                     Name = device.FriendlyName,
                     IsDefault = false,
-                    DataFlow = "Recording",
-                    Device = device
+                    DataFlow = "Recording"
                 });
             }
         }
@@ -82,27 +104,22 @@ public static class AudioDeviceManager
             Console.WriteLine($"Failed to enumerate audio devices: {ex.Message}");
 
             // Fallback: add a default entry
-            devices.Add(new AudioDeviceInfo
-            {
-                Id = "",
-                Name = "Default Device",
-                IsDefault = true,
-                DataFlow = "Playback ",
-                Device = null
-            });
+            devices.Add(CreateFallbackDevice());
         }
 
         return devices;
     }
 
-    public static IWaveIn CreateAudioCapture(string deviceId)
+    private static IAudioCapture CreateAudioCaptureWasapi(string deviceId)
     {
         try
         {
+            IWaveIn waveIn;
+
             if (string.IsNullOrEmpty(deviceId))
             {
                 // Use default device
-                return new WasapiLoopbackCapture();
+                waveIn = new WasapiLoopbackCapture();
             }
             else
             {
@@ -111,17 +128,19 @@ public static class AudioDeviceManager
                 var device = enumerator.GetDevice(deviceId);
                 if (device.DataFlow == DataFlow.Render)
                 {
-                    return new WasapiLoopbackCapture(device);
+                    waveIn = new WasapiLoopbackCapture(device);
                 }
                 else if (device.DataFlow == DataFlow.Capture)
                 {
-                    return new WasapiCapture(device);
+                    waveIn = new WasapiCapture(device);
                 }
                 else
                 {
                     throw new InvalidOperationException("Selected device is neither render nor capture.");
                 }
             }
+
+            return new NAudioCapture(waveIn, GetDeviceNameWasapi(deviceId));
         }
         catch (Exception ex)
         {
@@ -129,11 +148,11 @@ public static class AudioDeviceManager
             Console.WriteLine("Falling back to default device...");
 
             // Fallback to default device
-            return new WasapiLoopbackCapture();
+            return new NAudioCapture(new WasapiLoopbackCapture(), GetDeviceNameWasapi(""));
         }
     }
 
-    public static string GetDeviceName(string deviceId)
+    private static string GetDeviceNameWasapi(string deviceId)
     {
         if (string.IsNullOrEmpty(deviceId))
             return "Default Device";
@@ -148,5 +167,112 @@ public static class AudioDeviceManager
         {
             return "Unknown Device";
         }
+    }
+
+    #endregion
+
+    #region Linux (PulseAudio)
+
+    private static List<AudioDeviceInfo> GetAvailableAudioDevicesPulse()
+    {
+        var devices = new List<AudioDeviceInfo>();
+
+        try
+        {
+            PulseAudioSnapshot snapshot = PulseAudioClient.TryQuerySnapshot();
+
+            if (snapshot.Sinks.Count == 0 && snapshot.Sources.Count == 0)
+            {
+                Console.WriteLine("No PulseAudio devices found.");
+                devices.Add(CreateFallbackDevice());
+                return devices;
+            }
+
+            // Default playback device (loopback capture of the default sink) first.
+            string defaultSinkName = !string.IsNullOrEmpty(snapshot.DefaultSinkName)
+                ? snapshot.DefaultSinkName
+                : snapshot.Sinks.FirstOrDefault()?.Name ?? "";
+
+            var defaultSink = snapshot.Sinks.FirstOrDefault(s => s.Name == defaultSinkName);
+            devices.Add(new AudioDeviceInfo
+            {
+                Id = "",
+                Name = defaultSink != null
+                    ? $"Default - {defaultSink.Description}"
+                    : "Default Device",
+                IsDefault = true,
+                DataFlow = "Playback "
+            });
+
+            // All other playback devices.
+            foreach (var sink in snapshot.Sinks)
+            {
+                devices.Add(new AudioDeviceInfo
+                {
+                    Id = sink.Name,
+                    Name = sink.Description,
+                    IsDefault = sink.Name == defaultSinkName,
+                    DataFlow = "Playback "
+                });
+            }
+
+            // Recording devices (skip the sink monitor sources, they are already covered above).
+            foreach (var source in snapshot.Sources)
+            {
+                if (snapshot.IsMonitorSource(source.Name))
+                    continue;
+
+                devices.Add(new AudioDeviceInfo
+                {
+                    Id = source.Name,
+                    Name = source.Description,
+                    IsDefault = source.Name == snapshot.DefaultSourceName,
+                    DataFlow = "Recording"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to enumerate audio devices: {ex.Message}");
+            devices.Add(CreateFallbackDevice());
+        }
+
+        return devices;
+    }
+
+    private static string GetDeviceNamePulse(string deviceId)
+    {
+        if (string.IsNullOrEmpty(deviceId))
+            return "Default Device";
+
+        try
+        {
+            PulseAudioSnapshot snapshot = PulseAudioClient.TryQuerySnapshot();
+
+            string description = snapshot.Sinks
+                .FirstOrDefault(s => s.Name == deviceId)?.Description
+                ?? snapshot.Sources
+                    .FirstOrDefault(s => s.Name == deviceId || s.Name == PulseAudioSnapshot.MonitorNameFor(deviceId))?.Description
+                ?? "";
+
+            return string.IsNullOrEmpty(description) ? deviceId : description;
+        }
+        catch (Exception)
+        {
+            return "Unknown Device";
+        }
+    }
+
+    #endregion
+
+    private static AudioDeviceInfo CreateFallbackDevice()
+    {
+        return new AudioDeviceInfo
+        {
+            Id = "",
+            Name = "Default Device",
+            IsDefault = true,
+            DataFlow = "Playback "
+        };
     }
 }

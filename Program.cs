@@ -3,10 +3,8 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using NAudio.Wave;
 using MathNet.Numerics;
 using MathNet.Numerics.IntegralTransforms;
-using System.Runtime.InteropServices;
 
 using CAudioVisualizer.Core;
 using CAudioVisualizer.GUI;
@@ -15,18 +13,9 @@ using CAudioVisualizer.Visualizers;
 
 namespace CAudioVisualizer;
 
-internal static class NativeMethods
-{
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    public static extern uint SetThreadExecutionState(uint esFlags);
-
-    public const uint ES_CONTINUOUS = 0x80000000;
-    public const uint ES_DISPLAY_REQUIRED = 0x00000002;
-}
-
 public class AudioVisualizerWindow : GameWindow
 {
-    private IWaveIn? _capture;
+    private IAudioCapture? _capture;
     private readonly List<float> _audioBuffer = new();
     private readonly object _bufferLock = new();
     private const int BUFFER_SIZE = 2048;
@@ -81,8 +70,7 @@ public class AudioVisualizerWindow : GameWindow
     protected override void OnLoad()
     {
         base.OnLoad();
-        NativeMethods.SetThreadExecutionState(
-            NativeMethods.ES_CONTINUOUS | NativeMethods.ES_DISPLAY_REQUIRED);
+        ScreenAwake.KeepAwake();
 
         GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         GL.Enable(EnableCap.Blend);
@@ -122,19 +110,24 @@ public class AudioVisualizerWindow : GameWindow
         {
             _capture = AudioDeviceManager.CreateAudioCapture(_appConfig.SelectedAudioDeviceId);
 
+            if (_capture == null)
+            {
+                Console.WriteLine("No audio capture backend available.");
+                return;
+            }
+
             string audioDeviceInfo =
                 $"Audio Device: {_appConfig.SelectedAudioDeviceName}\n" +
-                $"Sample Rate: {_capture.WaveFormat.SampleRate} Hz\n" +
-                $"Channels: {_capture.WaveFormat.Channels}\n" +
-                $"Bits Per Sample: {_capture.WaveFormat.BitsPerSample}\n" +
-                $"Bytes Per Second: {_capture.WaveFormat.AverageBytesPerSecond}";
+                $"Sample Rate: {_capture.SampleRate} Hz\n" +
+                $"Channels: {_capture.Channels}\n" +
+                $"Bits Per Sample: {_capture.BitsPerSample}\n" +
+                $"Bytes Per Second: {_capture.AverageBytesPerSecond}";
 
             Console.WriteLine(audioDeviceInfo.Replace("\n", Environment.NewLine));
 
             _visualizerManager.SetAudioDeviceInfo(audioDeviceInfo);
 
             _capture.DataAvailable += OnDataAvailable;
-            _capture.RecordingStopped += (s, e) => Console.WriteLine("Recording stopped");
             _capture.StartRecording();
         }
         catch (Exception ex)
@@ -149,8 +142,8 @@ public class AudioVisualizerWindow : GameWindow
         {
             if (_capture != null)
             {
-                _capture.StopRecording();
                 _capture.DataAvailable -= OnDataAvailable;
+                _capture.StopRecording();
                 _capture.Dispose();
                 _capture = null;
             }
@@ -176,17 +169,16 @@ public class AudioVisualizerWindow : GameWindow
         }
     }
 
-    private void OnDataAvailable(object? sender, WaveInEventArgs e)
+    private void OnDataAvailable(object? sender, AudioSamplesEventArgs e)
     {
         lock (_bufferLock)
         {
-            // Convert byte array to float array more efficiently
-            int sampleCount = e.BytesRecorded / 4; // 4 bytes per float sample
+            var samples = e.Samples;
+            int count = Math.Min(e.SampleCount, samples.Length);
 
-            for (int i = 0; i < sampleCount; i++)
+            for (int i = 0; i < count; i++)
             {
-                float sample = BitConverter.ToSingle(e.Buffer, i * 4);
-                _audioBuffer.Add(sample);
+                _audioBuffer.Add(samples[i]);
             }
 
             if (_audioBuffer.Count > BUFFER_SIZE * 2)
@@ -356,10 +348,15 @@ public class AudioVisualizerWindow : GameWindow
     protected override void OnUnload()
     {
         base.OnUnload();
-        NativeMethods.SetThreadExecutionState(NativeMethods.ES_CONTINUOUS);
+        ScreenAwake.AllowSleep();
 
-        _capture?.StopRecording();
-        _capture?.Dispose();
+        if (_capture != null)
+        {
+            _capture.DataAvailable -= OnDataAvailable;
+            _capture.StopRecording();
+            _capture.Dispose();
+            _capture = null;
+        }
 
         _visualizerManager?.Dispose();
         _imGuiController?.Dispose();
@@ -370,6 +367,16 @@ static class Program
 {
     static void Main()
     {
+        // OpenTK 4.9 defaults to GLFW's Wayland platform, but GLFW cannot position windows
+        // there which the (fullscreen sized) visualizer window relies on. Opt out of
+        // Wayland when an X11 display is available and the user did not ask otherwise.
+        if (!OperatingSystem.IsWindows()
+            && Environment.GetEnvironmentVariable("OPENTK_4_USE_WAYLAND") == null
+            && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+        {
+            Environment.SetEnvironmentVariable("OPENTK_4_USE_WAYLAND", "0");
+        }
+
         var tempConfig = new CAudioVisualizer.Configuration.AppConfig();
         tempConfig.LoadConfiguration(CAudioVisualizer.Configuration.AppConfig.GetConfigFilePath());
 

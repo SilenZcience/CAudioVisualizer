@@ -20,16 +20,22 @@ if (!(Test-Path $outputDir)) {
 }
 
 Write-Host "Building self-contained Windows x64 executable..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-x64" -o "$outputDir\win-x64"
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-x64" -o "$outputDir\win-x64"
 
 Write-Host "Building self-contained Windows x86 executable..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-x86" -o "$outputDir\win-x86"
+dotnet publish -c Release -r win-x86 --self-contained -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-x86" -o "$outputDir\win-x86"
 
 Write-Host "Building framework-dependent Windows version..." -ForegroundColor Yellow
-dotnet publish -c Release --self-contained false -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-framework-dependent" -o "$outputDir\win-framework-dependent"
+dotnet publish -c Release -r win-x64 --no-self-contained -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-win-framework-dependent" -o "$outputDir\win-framework-dependent"
 
 Write-Host "Building installer-ready Windows version with DLLs..." -ForegroundColor Yellow
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "$outputDir\win-installer-ready"
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "$outputDir\win-installer-ready"
+
+Write-Host "Building self-contained Linux x64 executable..." -ForegroundColor Yellow
+dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-linux-x64" -o "$outputDir\linux-x64"
+
+Write-Host "Building framework-dependent Linux version..." -ForegroundColor Yellow
+dotnet publish -c Release -r linux-x64 --no-self-contained -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -p:AssemblyName="CAudioVisualizer-$Version-linux-framework-dependent" -o "$outputDir\linux-framework-dependent"
 
 Write-Host "Build completed!" -ForegroundColor Green
 Write-Host "Output directories:" -ForegroundColor Cyan
@@ -37,6 +43,8 @@ Write-Host "  - $outputDir\win-x64 (self-contained Windows 64-bit file)" -Foregr
 Write-Host "  - $outputDir\win-x86 (self-contained Windows 32-bit file)" -ForegroundColor White
 Write-Host "  - $outputDir\win-framework-dependent (requires .NET 10.0)" -ForegroundColor White
 Write-Host "  - $outputDir\win-installer-ready (installer-ready with DLLs)" -ForegroundColor White
+Write-Host "  - $outputDir\linux-x64 (self-contained Linux 64-bit file)" -ForegroundColor White
+Write-Host "  - $outputDir\linux-framework-dependent (requires .NET 10.0)" -ForegroundColor White
 
 # Show file sizes
 Write-Host "`nFile sizes:" -ForegroundColor Cyan
@@ -55,6 +63,14 @@ if (Test-Path "$outputDir\win-framework-dependent\CAudioVisualizer-$Version-win-
 if (Test-Path "$outputDir\win-installer-ready\CAudioVisualizer.exe") {
     $sizeInstaller = [math]::Round((Get-Item "$outputDir\win-installer-ready\CAudioVisualizer.exe").Length / 1MB, 2)
     Write-Host "  - installer-ready: $sizeInstaller MB" -ForegroundColor White
+}
+if (Test-Path "$outputDir\linux-x64\CAudioVisualizer-$Version-linux-x64") {
+    $sizeLinux = [math]::Round((Get-Item "$outputDir\linux-x64\CAudioVisualizer-$Version-linux-x64").Length / 1MB, 2)
+    Write-Host "  - linux-x64: $sizeLinux MB" -ForegroundColor White
+}
+if (Test-Path "$outputDir\linux-framework-dependent\CAudioVisualizer-$Version-linux-framework-dependent") {
+    $sizeLinuxFd = [math]::Round((Get-Item "$outputDir\linux-framework-dependent\CAudioVisualizer-$Version-linux-framework-dependent").Length / 1MB, 2)
+    Write-Host "  - linux-framework-dependent: $sizeLinuxFd MB" -ForegroundColor White
 }
 
 Write-Host "`nReady for distribution! 🎵" -ForegroundColor Green

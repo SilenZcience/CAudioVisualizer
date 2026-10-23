@@ -13,6 +13,7 @@
 </p>
 
 [![OS-Windows]][OS-Windows]
+[![OS-Linux]][OS-Linux]
 
 <br/>
 <div align="center">
@@ -48,6 +49,7 @@
          <ul>
             <li><a href="#prerequisites">Prerequisites</a></li>
             <li><a href="#installation">Installation</a></li>
+            <li><a href="#building-from-source">Building From Source</a></li>
          </ul>
       </li>
       <li><a href="#usage">Usage</a>
@@ -94,10 +96,14 @@ Feel free to explore the code, contribute, or request new features!
 [![.Net-Version]](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
 
 **External Libraries:**
-- **[NAudio](https://github.com/naudio/NAudio)** - Audio capture & processing
+- **[NAudio](https://github.com/naudio/NAudio)** - Audio capture & processing (Windows)
 - **[OpenTK](https://github.com/opentk/opentk)** - OpenGL bindings & windowing
 - **[ImGui.NET](https://github.com/ImGuiNET/ImGui.NET)** - Immediate mode GUI framework
 - **[MathNet.Numerics](https://github.com/mathnet/mathnet-numerics)** - Mathematical computations & FFT
+
+Audio capture is platform specific: on Windows NAudio/WASAPI is used (loopback capture of the
+selected playback device), on Linux the PulseAudio protocol is spoken directly (loopback capture
+of the selected sink monitor).
 
 
 
@@ -123,10 +129,40 @@ Feel free to explore the code, contribute, or request new features!
 - **Audio**: Windows audio device (speakers/headphones)
 - **Disk Space**: ~200MB
 
+### Self-Contained Version (linux-x64)
+- **Operating System**: Linux x64 with a desktop session (X11 or Wayland)
+- **Memory**: 500MB RAM minimum
+- **Graphics**: OpenGL 3.3+ compatible graphics card
+- **Audio**: PulseAudio or PipeWire (with the PulseAudio server enabled)
+- **Disk Space**: ~200MB
+
 ### Framework-Dependent Version
 - **All above requirements PLUS:**
 - **.NET Runtime**: .NET 10.0 Desktop Runtime
   - Download from: https://dotnet.microsoft.com/download/dotnet/10.0
+
+### Linux notes
+
+The Linux backend talks the PulseAudio protocol directly through `libpulse`, which is part of
+PulseAudio as well as of `pipewire-pulse`. Make sure one of them is installed, for example:
+
+```bash
+# Debian / Ubuntu
+sudo apt install libpulse0
+
+# Fedora
+sudo dnf install pulseaudio-libs
+
+# Arch
+sudo pacman -S libpulse
+```
+
+The visualizer captures the *monitor* source of the selected sink, so it shows whatever the
+system is currently playing. `pactl list short sinks` shows the available sinks.
+
+On Wayland sessions the window is placed through XWayland (GLFW cannot position native Wayland
+windows). Set `OPENTK_4_USE_WAYLAND=1` to use native Wayland instead, but then window
+placement and some monitor handling are up to your compositor.
 
 <div id="installation"></div>
 
@@ -139,6 +175,8 @@ you can choose between using the following installation methods:
 - download and use CAudioVisualizer.exe for win-x86
 - download and use CAudioVisualizer.exe for win-framework-dependent (needs .Net 10.0 installed)
 - download and install CAudioVisualizer using the CAudioVisualizer-Setup.exe as a true windows application.
+- download and use CAudioVisualizer for linux-x64 (self-contained, needs `libpulse`)
+- download and use CAudioVisualizer for linux-framework-dependent (needs .Net 10.0 installed)
 
 <div id="download"></div>
 
@@ -149,6 +187,32 @@ All executable files can be directly *downloaded* via the [github releases](http
 > [!CAUTION]
 > **You should never trust any executable file!** Feel free to compile the application yourself (e.g. using [build-release.ps1](https://github.com/SilenZcience/CAudioVisualizer/blob/main/build-release.ps1)).\
 > You can verify the creation of the executable files yourself by reading the [source code](https://github.com/SilenZcience/CAudioVisualizer/blob/main/Program.cs) and validating the [build-process](https://github.com/SilenZcience/CAudioVisualizer/blob/main/build-release.ps1) used.
+
+<div id="building-from-source"></div>
+
+### Building From Source
+
+The project targets `net10.0` on every platform; the platform-specific audio backend is
+selected at runtime. Therefore no target framework has to be specified, and `dotnet run` works
+directly on Windows and Linux:
+
+```bash
+# run directly from source (any platform)
+dotnet run
+
+# build the project
+dotnet build
+```
+
+To create a standalone single file executable, select the platform with a runtime identifier:
+
+```bash
+dotnet publish -c Release -r linux-x64 --self-contained
+dotnet publish -c Release -r win-x64   --self-contained
+```
+
+[build-release.ps1](https://github.com/SilenZcience/CAudioVisualizer/blob/main/build-release.ps1)
+builds all Windows and Linux releases at once and writes them into `releases/`.
 
 <p align="right">(<a href="#top">↑back to top↑</a>)</p>
 <div id="usage"></div>
@@ -173,7 +237,7 @@ Use the hotkey `F3` to open the config menu.
 - **Customizable**: Extensive configuration options for colors, sizes, positions, and effects
 - **Multiple Monitors**: Support for multi-monitor setups
 - **Fade Trail Effects**: Beautiful trailing effects for enhanced visualization
-- **Configuration Persistence**: Save and load your preferred settings (%appdata%/CAudioVisualizer/)
+- **Configuration Persistence**: Save and load your preferred settings (`%appdata%/CAudioVisualizer/` on Windows, `~/.config/CAudioVisualizer/` on Linux)
 
 <div id="examples"></div>
 
@@ -230,6 +294,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 [![GitHub-SilenZcience][GitHub-SilenZcience]](https://github.com/SilenZcience)
 
 [OS-Windows]: https://img.shields.io/badge/os-windows-green?label=OS
+[OS-Linux]: https://img.shields.io/badge/os-linux-green?label=OS
 
 [GitHub-Last-Commit]: https://img.shields.io/github/last-commit/SilenZcience/CAudioVisualizer/main
 [GitHub-Issues]: https://img.shields.io/github/issues/SilenZcience/CAudioVisualizer
