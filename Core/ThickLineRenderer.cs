@@ -132,6 +132,74 @@ public sealed class ThickLineRenderer
         }
     }
 
+    public sealed class Geometry : IDisposable
+    {
+        internal int Vao;
+        internal int Vbo;
+        internal int VertexCount;
+        internal float Outer;
+        internal float Feather;
+
+        public void Dispose()
+        {
+            if (Vao != 0)
+            {
+                GL.DeleteVertexArray(Vao);
+                GL.DeleteBuffer(Vbo);
+                Vao = 0;
+                Vbo = 0;
+                VertexCount = 0;
+            }
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    public Geometry BuildGeometry(ThickLineMode mode, List<float> vertices, float width, bool smooth)
+    {
+        var geometry = new Geometry();
+
+        int count = vertices.Count / SrcFloats;
+        if (count < 2) return geometry;
+        if (mode == ThickLineMode.LineLoop && count < 3) return geometry;
+        if (width < 1.0f) width = 1.0f;
+
+        EnsureInitialized();
+
+        float half = width * 0.5f;
+        geometry.Outer = smooth ? half + 0.5f : half;
+        geometry.Feather = smooth ? 1.0f : 0.0f;
+
+        Expand(mode, vertices, count, geometry.Outer, smooth);
+        if (_expanded.Count == 0) return geometry;
+
+        geometry.Vbo = GL.GenBuffer();
+        geometry.Vao = GL.GenVertexArray();
+        GL.BindVertexArray(geometry.Vao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, geometry.Vbo);
+        var span = CollectionsMarshal.AsSpan(_expanded);
+        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.StaticDraw);
+        ConfigureExpandedAttribs();
+        geometry.VertexCount = _expanded.Count / ExpFloats;
+
+        return geometry;
+    }
+
+    public void DrawGeometry(Geometry geometry, float alpha, ref Matrix4 projection)
+    {
+        if (geometry == null || geometry.VertexCount == 0) return;
+
+        EnsureInitialized();
+
+        GL.UseProgram(_shaderProgram);
+        GL.UniformMatrix4(_projectionLocation, false, ref projection);
+        GL.Uniform1(_alphaLocation, alpha);
+        GL.Uniform1(_outerLocation, geometry.Outer);
+        GL.Uniform1(_featherLocation, geometry.Feather);
+
+        GL.BindVertexArray(geometry.Vao);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, geometry.VertexCount);
+    }
+
     // --- geometry expansion -------------------------------------------------
 
     private void ExpandSegments(List<float> src, int count, float outer, bool smooth)

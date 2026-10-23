@@ -16,6 +16,7 @@ public class SpectrumConfig
     public float BarSpacing { get; set; } = 2.0f;
     public float Size { get; set; } = 200.0f;
     public int BarAngle { get; set; } = 0; // 0 = linear, 360 = full circle
+    public int Rotation { get; set; } = 0; // rotation of the whole arrangement, 0-360 deg
     public bool EnablePeakIndicators { get; set; } = true;
     public float PeakDropSpeed { get; set; } = 5f;
     public float PeakLength { get; set; } = 8.0f;
@@ -37,6 +38,7 @@ public struct SpectrumFrame
     public Vector3 Color;
     public float Alpha;
     public float BarWidth;
+    public ThickLineRenderer.Geometry? Geometry;
 }
 
 public class SpectrumVisualizer : IVisualizer, IConfigurable
@@ -54,8 +56,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     private readonly List<SpectrumFrame> _trailFrames = new();
     private readonly List<float> _mainVertexBuffer = new();
     private VisualizerManager? _visualizerManager;
-
-    private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -96,6 +96,9 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         }
         else
         {
+            // Drop leftover trail frames (and their GPU geometry) when the trail is off.
+            ClearTrailFrames();
+
             var currentFrame = GenerateCurrentSpectrum();
             if (currentFrame.Vertices.Count == 0) return;
 
@@ -117,6 +120,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             frame.Alpha *= _config.FadeSpeed;
             if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
+                frame.Geometry?.Dispose();
                 _trailFrames.RemoveAt(i);
             }
             else
@@ -131,15 +135,33 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
+        // Each frame's geometry is expanded and uploaded once, then reused; the fade
+        // alpha is applied as a uniform, so no per-frame re-upload happens here.
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
             if (frame.Vertices.Count == 0) continue;
-            var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
-            RenderSpectrum(fadedVertices, frame.BarWidth, frame.Color, ref projection);
+
+            if (frame.Geometry == null)
+            {
+                frame.Geometry = ThickLineRenderer.Instance.BuildGeometry(
+                    ThickLineMode.Lines, frame.Vertices, frame.BarWidth, smooth: true);
+                _trailFrames[i] = frame;
+            }
+
+            ThickLineRenderer.Instance.DrawGeometry(frame.Geometry, frame.Alpha, ref projection);
         }
 
         GL.Disable(EnableCap.Blend);
+    }
+
+    private void ClearTrailFrames()
+    {
+        if (_trailFrames.Count == 0) return;
+
+        foreach (var frame in _trailFrames)
+            frame.Geometry?.Dispose();
+        _trailFrames.Clear();
     }
 
     private SpectrumFrame GenerateCurrentSpectrum()
@@ -200,6 +222,18 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         Vector2 center = new Vector2(centerX, centerY + r);
         float thetaStart = MathF.PI / 2 + arcAngle / 2;
 
+        bool rotated = _config.Rotation != 0;
+        float rotCos = 1.0f, rotSin = 0.0f;
+        Vector2 pivot = new Vector2(centerX, centerY);
+        if (rotated)
+        {
+            float rotRad = _config.Rotation / 180f * MathF.PI;
+            rotCos = MathF.Cos(rotRad);
+            rotSin = MathF.Sin(rotRad);
+            if (arcAngle >= 1e-3f) // linear row keeps the anchor as pivot (r -> inf)
+                pivot.Y += r * Math.Min(arcAngle / (2.0f * MathF.PI), 1.0f);
+        }
+
         if (_peakPositions.Length != count)
         {
             Array.Resize(ref _peakPositions, count);
@@ -223,6 +257,18 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
                 ? new Vector2(centerX - w / 2 + (float)i / (count - 1) * w, centerY)
                 : new Vector2(center.X + r * MathF.Cos(theta), center.Y - r * MathF.Sin(theta));
             Vector2 dir = Vector2.Normalize(new Vector2(MathF.Cos(theta), -MathF.Sin(theta)));
+
+            if (rotated)
+            {
+                float dx = start.X - pivot.X;
+                float dy = start.Y - pivot.Y;
+                start.X = pivot.X + dx * rotCos - dy * rotSin;
+                start.Y = pivot.Y + dx * rotSin + dy * rotCos;
+                float dirX = dir.X * rotCos - dir.Y * rotSin;
+                dir.Y = dir.X * rotSin + dir.Y * rotCos;
+                dir.X = dirX;
+            }
+
             Vector2 end = start + dir * value;
 
             // Bar vertices
@@ -273,19 +319,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         };
     }
 
-    private List<float> ApplyAlphaToVertices(List<float> vertices, float alpha)
-    {
-        _tempVertexBuffer.Clear();
-        if (_tempVertexBuffer.Capacity < vertices.Count)
-            _tempVertexBuffer.Capacity = vertices.Count;
-        _tempVertexBuffer.AddRange(vertices);
-        for (int i = 6; i < _tempVertexBuffer.Count; i += 7)
-        {
-            _tempVertexBuffer[i] = alpha;
-        }
-        return _tempVertexBuffer;
-    }
-
     private void RenderSpectrum(List<float> vertices, float barWidth, Vector3 color, ref Matrix4 projection)
     {
         if (vertices.Count == 0) return;
@@ -328,11 +361,26 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         if (ImGui.SliderInt("Bar Angle (deg)", ref barAngle, 0, 360))
             _config.BarAngle = barAngle;
 
+        int rotation = _config.Rotation;
+        if (ImGui.SliderInt("Rotation (deg)", ref rotation, 0, 360))
+            _config.Rotation = rotation;
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Rotates the entire visualizer around its position.");
+
         float adjustedBarWidth = _config.BarWidth + _config.BarWidth * _config.Size / (_config.BarCount * 2);
         float adjustedBarSpacing = _config.BarSpacing + _config.BarSpacing * _config.Size / (_config.BarCount * 2);
         float w = _config.BarCount * (adjustedBarWidth + adjustedBarSpacing);
         float r = _config.BarAngle > 0 ? w / (_config.BarAngle / 180f * MathF.PI) : 0;
         Vector2 center = new Vector2(_config.PositionX, _config.PositionY + r);
+        if (_config.Rotation != 0 && _config.BarAngle > 0)
+        {
+            float rotRad = _config.Rotation / 180f * MathF.PI;
+            float t = Math.Min((_config.BarAngle / 180f * MathF.PI) / (2.0f * MathF.PI), 1.0f);
+            Vector2 pivot = new Vector2(_config.PositionX, _config.PositionY + r * t);
+            float dx = center.X - pivot.X, dy = center.Y - pivot.Y;
+            center.X = pivot.X + dx * MathF.Cos(rotRad) - dy * MathF.Sin(rotRad);
+            center.Y = pivot.Y + dx * MathF.Sin(rotRad) + dy * MathF.Cos(rotRad);
+        }
 
         ImGui.TextColored(new System.Numerics.Vector4(0.7f, 0.7f, 0.7f, 1.0f), $"Calculated Geometry:");
         ImGui.Text($"width:  {w:F2}");
@@ -489,6 +537,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
     public void Dispose()
     {
         if (!_initialized) return;
+        ClearTrailFrames();
         _initialized = false;
     }
 }

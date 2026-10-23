@@ -12,6 +12,7 @@ public struct WaveformFrame
     public Vector3 Color;
     public float Alpha;
     public float LineWidth;
+    public ThickLineRenderer.Geometry? Geometry;
 }
 
 public class WaveformConfig
@@ -49,8 +50,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private float[] _fftData = Array.Empty<float>();
     private List<WaveformFrame> _trailFrames = new();
     private VisualizerManager? _visualizerManager;
-
-    private readonly List<float> _tempVertexBuffer = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -91,6 +90,9 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         }
         else
         {
+            // Drop leftover trail frames (and their GPU geometry) when the trail is off.
+            ClearTrailFrames();
+
             var currentWaveform = GenerateCurrentWaveform();
             if (currentWaveform.Vertices.Count == 0) return;
 
@@ -115,6 +117,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Remove frames that are too transparent or exceed trail length
             if (frame.Alpha < 0.01f || i >= _config.TrailLength)
             {
+                frame.Geometry?.Dispose();
                 _trailFrames.RemoveAt(i);
             }
             else
@@ -129,19 +132,34 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
 
-        // Render trail frames from oldest to newest (so newest appears on top)
+        // Render trail frames from oldest to newest (so newest appears on top).
+        // Each frame's geometry is expanded and uploaded once, then reused; the fade
+        // alpha is applied as a uniform, so no per-frame re-upload happens here.
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var frame = _trailFrames[i];
             if (frame.Vertices.Count == 0) continue;
 
-            // Apply alpha to vertices
-            var fadedVertices = ApplyAlphaToVertices(frame.Vertices, frame.Alpha);
+            if (frame.Geometry == null)
+            {
+                frame.Geometry = ThickLineRenderer.Instance.BuildGeometry(
+                    ThickLineMode.LineStrip, frame.Vertices, frame.LineWidth, smooth: true);
+                _trailFrames[i] = frame;
+            }
 
-            RenderWaveform(fadedVertices, frame.LineWidth, ref projection);
+            ThickLineRenderer.Instance.DrawGeometry(frame.Geometry, frame.Alpha, ref projection);
         }
 
         GL.Disable(EnableCap.Blend);
+    }
+
+    private void ClearTrailFrames()
+    {
+        if (_trailFrames.Count == 0) return;
+
+        foreach (var frame in _trailFrames)
+            frame.Geometry?.Dispose();
+        _trailFrames.Clear();
     }
 
     private WaveformFrame GenerateCurrentWaveform()
@@ -212,23 +230,6 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             Alpha = 1.0f,
             LineWidth = _config.LineThickness
         };
-    }
-
-    private List<float> ApplyAlphaToVertices(List<float> vertices, float alpha)
-    {
-        _tempVertexBuffer.Clear();
-        if (_tempVertexBuffer.Capacity < vertices.Count)
-            _tempVertexBuffer.Capacity = vertices.Count;
-
-        _tempVertexBuffer.AddRange(vertices);
-
-        // Apply alpha to alpha component only (every 7th float is alpha)
-        for (int i = 6; i < _tempVertexBuffer.Count; i += 7)
-        {
-            _tempVertexBuffer[i] = alpha;
-        }
-
-        return _tempVertexBuffer;
     }
 
     private void RenderWaveform(List<float> vertices, float lineWidth, ref Matrix4 projection)
@@ -414,6 +415,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     {
         if (!_initialized) return;
 
+        ClearTrailFrames();
         _initialized = false;
     }
 }
