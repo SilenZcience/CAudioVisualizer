@@ -60,6 +60,17 @@ public class PostProcessingRenderer : IConfigurable
 
     private int _quadVAO, _quadVBO;
 
+    private int _ppScreenTextureLocation, _ppBloomTextureLocation, _ppResolutionLocation, _ppTimeLocation;
+    private int _ppEnableBloomLocation, _ppEnableChromaticLocation, _ppEnableVignetteLocation;
+    private int _ppEnableColorGradingLocation, _ppEnableFilmGrainLocation;
+    private int _ppBloomIntensityLocation, _ppChromaticStrengthLocation, _ppVignetteStrengthLocation;
+    private int _ppVignetteSizeLocation, _ppContrastLocation, _ppBrightnessLocation, _ppSaturationLocation;
+    private int _ppColorTintLocation, _ppGrainStrengthLocation;
+    private int _bloomScreenTextureLocation, _bloomThresholdLocation;
+    private int _blurHorizontalLocation, _blurImageLocation;
+
+    private Vector2i _framebufferSize = new(-1, -1);
+
     // Audio-reactive beat state
     private float _bloomAudioEnvelope = 0.0f;
     private float _chromaticAudioEnvelope = 0.0f;
@@ -298,6 +309,30 @@ public class PostProcessingRenderer : IConfigurable
         _postProcessShaderProgram = CreateShaderProgram(copyVertexShader, postProcessFragmentShader);
         _bloomExtractProgram = CreateShaderProgram(copyVertexShader, bloomExtractFragment);
         _gaussianBlurProgram = CreateShaderProgram(copyVertexShader, gaussianBlurFragment);
+
+        _ppScreenTextureLocation = GL.GetUniformLocation(_postProcessShaderProgram, "screenTexture");
+        _ppBloomTextureLocation = GL.GetUniformLocation(_postProcessShaderProgram, "bloomTexture");
+        _ppResolutionLocation = GL.GetUniformLocation(_postProcessShaderProgram, "resolution");
+        _ppTimeLocation = GL.GetUniformLocation(_postProcessShaderProgram, "time");
+        _ppEnableBloomLocation = GL.GetUniformLocation(_postProcessShaderProgram, "enableBloom");
+        _ppEnableChromaticLocation = GL.GetUniformLocation(_postProcessShaderProgram, "enableChromaticAberration");
+        _ppEnableVignetteLocation = GL.GetUniformLocation(_postProcessShaderProgram, "enableVignette");
+        _ppEnableColorGradingLocation = GL.GetUniformLocation(_postProcessShaderProgram, "enableColorGrading");
+        _ppEnableFilmGrainLocation = GL.GetUniformLocation(_postProcessShaderProgram, "enableFilmGrain");
+        _ppBloomIntensityLocation = GL.GetUniformLocation(_postProcessShaderProgram, "bloomIntensity");
+        _ppChromaticStrengthLocation = GL.GetUniformLocation(_postProcessShaderProgram, "chromaticStrength");
+        _ppVignetteStrengthLocation = GL.GetUniformLocation(_postProcessShaderProgram, "vignetteStrength");
+        _ppVignetteSizeLocation = GL.GetUniformLocation(_postProcessShaderProgram, "vignetteSize");
+        _ppContrastLocation = GL.GetUniformLocation(_postProcessShaderProgram, "contrast");
+        _ppBrightnessLocation = GL.GetUniformLocation(_postProcessShaderProgram, "brightness");
+        _ppSaturationLocation = GL.GetUniformLocation(_postProcessShaderProgram, "saturation");
+        _ppColorTintLocation = GL.GetUniformLocation(_postProcessShaderProgram, "colorTint");
+        _ppGrainStrengthLocation = GL.GetUniformLocation(_postProcessShaderProgram, "grainStrength");
+
+        _bloomScreenTextureLocation = GL.GetUniformLocation(_bloomExtractProgram, "screenTexture");
+        _bloomThresholdLocation = GL.GetUniformLocation(_bloomExtractProgram, "threshold");
+        _blurHorizontalLocation = GL.GetUniformLocation(_gaussianBlurProgram, "horizontal");
+        _blurImageLocation = GL.GetUniformLocation(_gaussianBlurProgram, "image");
     }
 
     private int CreateShaderProgram(string vertexSource, string fragmentSource)
@@ -368,6 +403,7 @@ public class PostProcessingRenderer : IConfigurable
         GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, _tempColorTexture, 0);
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        _framebufferSize = windowSize;
     }
 
     public void Update(float[] waveformData, float[] fftData, double deltaTime)
@@ -433,12 +469,17 @@ public class PostProcessingRenderer : IConfigurable
         envelope = Math.Max(0.0f, Math.Min(1.0f, envelope));
     }
 
-    public void BeginCapture()
+    public bool BeginCapture()
     {
+        if (!_config.EnableBloom && !_config.EnableChromaticAberration && !_config.EnableVignette &&
+            !_config.EnableColorGrading && !_config.EnableFilmGrain)
+        {
+            return false;
+        }
+
         var windowSize = CurrentWindowSize;
 
-        // Always ensure framebuffers are properly sized - OpenGL will handle redundant operations efficiently
-        if (_initialized)
+        if (_framebufferSize != windowSize)
         {
             ResizeFramebuffers(windowSize);
         }
@@ -447,6 +488,7 @@ public class PostProcessingRenderer : IConfigurable
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, _mainFramebuffer);
         GL.Viewport(0, 0, windowSize.X, windowSize.Y);
         GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        return true;
     }
 
     public void EndCaptureAndRender()
@@ -466,17 +508,17 @@ public class PostProcessingRenderer : IConfigurable
         GL.UseProgram(_postProcessShaderProgram);
 
         // Set uniforms
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "screenTexture"), 0);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "bloomTexture"), 1);
-        GL.Uniform2(GL.GetUniformLocation(_postProcessShaderProgram, "resolution"), (float)windowSize.X, (float)windowSize.Y);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "time"), (float)(DateTime.Now.TimeOfDay.TotalSeconds));
+        GL.Uniform1(_ppScreenTextureLocation, 0);
+        GL.Uniform1(_ppBloomTextureLocation, 1);
+        GL.Uniform2(_ppResolutionLocation, (float)windowSize.X, (float)windowSize.Y);
+        GL.Uniform1(_ppTimeLocation, (float)(DateTime.Now.TimeOfDay.TotalSeconds));
 
         // Effect toggles
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "enableBloom"), _config.EnableBloom ? 1 : 0);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "enableChromaticAberration"), _config.EnableChromaticAberration ? 1 : 0);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "enableVignette"), _config.EnableVignette ? 1 : 0);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "enableColorGrading"), _config.EnableColorGrading ? 1 : 0);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "enableFilmGrain"), _config.EnableFilmGrain ? 1 : 0);
+        GL.Uniform1(_ppEnableBloomLocation, _config.EnableBloom ? 1 : 0);
+        GL.Uniform1(_ppEnableChromaticLocation, _config.EnableChromaticAberration ? 1 : 0);
+        GL.Uniform1(_ppEnableVignetteLocation, _config.EnableVignette ? 1 : 0);
+        GL.Uniform1(_ppEnableColorGradingLocation, _config.EnableColorGrading ? 1 : 0);
+        GL.Uniform1(_ppEnableFilmGrainLocation, _config.EnableFilmGrain ? 1 : 0);
 
         // Effect parameters
 
@@ -487,7 +529,7 @@ public class PostProcessingRenderer : IConfigurable
             bloomIntensity += _bloomAudioEnvelope * _config.BloomAudioStrength;
             bloomIntensity = Math.Max(0.0f, bloomIntensity);
         }
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "bloomIntensity"), bloomIntensity);
+        GL.Uniform1(_ppBloomIntensityLocation, bloomIntensity);
 
         // Chromatic aberration strength, boosted by the CA's own audio-reactive beat pulse
         float chromaticStrength = _config.ChromaticStrength;
@@ -496,21 +538,21 @@ public class PostProcessingRenderer : IConfigurable
             chromaticStrength += _chromaticAudioEnvelope * _config.ChromaticAudioStrength;
             chromaticStrength = Math.Max(0.0f, chromaticStrength);
         }
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "chromaticStrength"), chromaticStrength);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "vignetteStrength"), _config.VignetteStrength);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "vignetteSize"), _config.VignetteSize);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "contrast"), _config.Contrast);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "brightness"), _config.Brightness);
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "saturation"), _config.Saturation);
+        GL.Uniform1(_ppChromaticStrengthLocation, chromaticStrength);
+        GL.Uniform1(_ppVignetteStrengthLocation, _config.VignetteStrength);
+        GL.Uniform1(_ppVignetteSizeLocation, _config.VignetteSize);
+        GL.Uniform1(_ppContrastLocation, _config.Contrast);
+        GL.Uniform1(_ppBrightnessLocation, _config.Brightness);
+        GL.Uniform1(_ppSaturationLocation, _config.Saturation);
 
         // Use time-based color for tint if enabled
         Vector3 colorTint = _config.UseTimeColorTint ? TimeColorHelper.GetTimeBasedColor() :
                           _config.UseRealTimeColorTint ? TimeColorHelper.GetRealTimeBasedColor() : _config.ColorTint;
         if (_config.InvertColorTint) colorTint = TimeColorHelper.InvertColor(colorTint);
 
-        GL.Uniform3(GL.GetUniformLocation(_postProcessShaderProgram, "colorTint"), colorTint);
+        GL.Uniform3(_ppColorTintLocation, colorTint);
 
-        GL.Uniform1(GL.GetUniformLocation(_postProcessShaderProgram, "grainStrength"), _config.GrainStrength);
+        GL.Uniform1(_ppGrainStrengthLocation, _config.GrainStrength);
 
         // Bind textures
         GL.ActiveTexture(TextureUnit.Texture0);
@@ -537,8 +579,8 @@ public class PostProcessingRenderer : IConfigurable
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(_bloomExtractProgram);
-        GL.Uniform1(GL.GetUniformLocation(_bloomExtractProgram, "screenTexture"), 0);
-        GL.Uniform1(GL.GetUniformLocation(_bloomExtractProgram, "threshold"), _config.BloomThreshold);
+        GL.Uniform1(_bloomScreenTextureLocation, 0);
+        GL.Uniform1(_bloomThresholdLocation, _config.BloomThreshold);
 
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, _mainColorTexture);
@@ -555,8 +597,8 @@ public class PostProcessingRenderer : IConfigurable
         {
             // Horizontal blur
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _tempFramebuffer);
-            GL.Uniform1(GL.GetUniformLocation(_gaussianBlurProgram, "horizontal"), 1);
-            GL.Uniform1(GL.GetUniformLocation(_gaussianBlurProgram, "image"), 0);
+            GL.Uniform1(_blurHorizontalLocation, 1);
+            GL.Uniform1(_blurImageLocation, 0);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, _bloomColorTexture);
@@ -567,7 +609,7 @@ public class PostProcessingRenderer : IConfigurable
 
             // Vertical blur
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _bloomFramebuffer);
-            GL.Uniform1(GL.GetUniformLocation(_gaussianBlurProgram, "horizontal"), 0);
+            GL.Uniform1(_blurHorizontalLocation, 0);
 
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, _tempColorTexture);
@@ -582,6 +624,8 @@ public class PostProcessingRenderer : IConfigurable
 
     private void ResizeFramebuffers(Vector2i newSize)
     {
+        if (_framebufferSize == newSize) return;
+
         // Resize main texture
         GL.BindTexture(TextureTarget.Texture2D, _mainColorTexture);
         GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb16f, newSize.X, newSize.Y, 0, PixelFormat.Rgb, PixelType.Float, IntPtr.Zero);
@@ -594,6 +638,7 @@ public class PostProcessingRenderer : IConfigurable
         GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgb16f, newSize.X / 2, newSize.Y / 2, 0, PixelFormat.Rgb, PixelType.Float, IntPtr.Zero);
 
         GL.BindTexture(TextureTarget.Texture2D, 0);
+        _framebufferSize = newSize;
     }
 
     public void RenderConfigGui()

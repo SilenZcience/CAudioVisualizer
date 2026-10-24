@@ -49,6 +49,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
     private float[] _audioData = Array.Empty<float>();
     private float[] _fftData = Array.Empty<float>();
     private List<WaveformFrame> _trailFrames = new();
+    private readonly List<float> _currentVertices = new();
     private VisualizerManager? _visualizerManager;
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
@@ -93,7 +94,7 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
             // Drop leftover trail frames (and their GPU geometry) when the trail is off.
             ClearTrailFrames();
 
-            var currentWaveform = GenerateCurrentWaveform();
+            var currentWaveform = GenerateCurrentWaveform(_currentVertices);
             if (currentWaveform.Vertices.Count == 0) return;
 
             // Render the waveform
@@ -162,15 +163,16 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
         _trailFrames.Clear();
     }
 
-    private WaveformFrame GenerateCurrentWaveform()
+    private WaveformFrame GenerateCurrentWaveform(List<float>? reusableBuffer = null)
     {
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
 
         if (dataSource.Length == 0)
         {
+            reusableBuffer?.Clear();
             return new WaveformFrame
             {
-                Vertices = new List<float>(),
+                Vertices = reusableBuffer ?? new List<float>(),
                 Color = _config.Color,
                 Alpha = 1.0f,
                 LineWidth = _config.LineThickness
@@ -186,7 +188,10 @@ public class WaveformVisualizer : IVisualizer, IConfigurable
 
         int waveformWidth = (int)(endPixel - startPixel);
 
-        var vertexBuffer = new List<float>(waveformWidth * 7);
+        var vertexBuffer = reusableBuffer ?? new List<float>(waveformWidth * 7);
+        vertexBuffer.Clear();
+        if (vertexBuffer.Capacity < waveformWidth * 7)
+            vertexBuffer.Capacity = waveformWidth * 7;
 
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;

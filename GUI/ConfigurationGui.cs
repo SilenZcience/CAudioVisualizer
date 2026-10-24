@@ -153,7 +153,14 @@ public class ConfigurationGui
                 try
                 {
                     _audioDevices = AudioDeviceManager.GetAvailableAudioDevices();
-                    _deviceNames = _audioDevices.Select(d => d.DataFlow + " - " + d.Name).ToArray();
+                if (_audioDevices != null)
+                {
+                    _deviceNames = new string[_audioDevices.Count];
+                    for (int i = 0; i < _audioDevices.Count; i++)
+                    {
+                        _deviceNames[i] = _audioDevices[i].DataFlow + " - " + _audioDevices[i].Name;
+                    }
+                }
                 }
                 catch (Exception ex)
                 {
@@ -324,9 +331,9 @@ public class ConfigurationGui
 
         // Show current instances
         ImGui.Text("Current Instances:");
-        var instances = _visualizerManager.GetAllInstances();
+        var orderedInstances = _visualizerManager.GetOrderedInstances();
 
-        foreach (var instance in instances.Values.OrderBy(i => i.CreatedAt))
+        foreach (var instance in orderedInstances)
         {
             ImGui.BulletText($"{instance.DisplayName} - {(instance.Visualizer.IsEnabled ? "Enabled" : "Disabled")}");
             ImGui.SameLine();
@@ -364,6 +371,7 @@ public class ConfigurationGui
                 if (_selectedTypeIndex >= 0 && _selectedTypeIndex < availableTypes.Length)
                 {
                     var typeName = availableTypes[_selectedTypeIndex];
+                    var instances = _visualizerManager.GetAllInstances();
                     var newInstance = VisualizerFactory.CreateVisualizerInstance(typeName, instances.Values);
 
                     if (newInstance != null)

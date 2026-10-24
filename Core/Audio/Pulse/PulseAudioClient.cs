@@ -60,9 +60,16 @@ internal sealed class PulseAudioConnection : IDisposable
     private readonly PulseAudioNative.DeviceInfoCallback _deviceInfoCallback;
     private readonly PulseAudioNative.ServerInfoCallback _serverInfoCallback;
     private readonly ManualResetEventSlim _stateChanged = new(false);
+    private readonly ManualResetEventSlim _deviceQueryCompleted = new(false);
+    private readonly ManualResetEventSlim _serverQueryCompleted = new(false);
+    private readonly object _queryLock = new();
+    private readonly List<PulseAudioDevice> _queriedDevices = new();
 
     private IntPtr _mainloop;
     private IntPtr _context;
+    private IntPtr _pendingOperation;
+    private string _defaultSinkName = "";
+    private string _defaultSourceName = "";
     private PulseAudioNative.ContextState _state = PulseAudioNative.ContextState.Unconnected;
     private bool _disposed;
 
@@ -173,72 +180,61 @@ internal sealed class PulseAudioConnection : IDisposable
     /// Queries sink, source and server information from the daemon.
     public PulseAudioSnapshot QuerySnapshot()
     {
-        var snapshot = new PulseAudioSnapshot();
-
-        foreach (var sink in QueryDeviceList(sinks: true))
+        lock (_queryLock)
         {
-            if (!string.IsNullOrEmpty(sink.Name))
-                snapshot.Sinks.Add(sink);
+            var snapshot = new PulseAudioSnapshot();
+
+            foreach (var sink in QueryDeviceList(sinks: true))
+            {
+                if (!string.IsNullOrEmpty(sink.Name))
+                    snapshot.Sinks.Add(sink);
+            }
+
+            foreach (var source in QueryDeviceList(sinks: false))
+            {
+                if (!string.IsNullOrEmpty(source.Name))
+                    snapshot.Sources.Add(source);
+            }
+
+            QueryServerInfo(snapshot);
+
+            return snapshot;
         }
-
-        foreach (var source in QueryDeviceList(sinks: false))
-        {
-            if (!string.IsNullOrEmpty(source.Name))
-                snapshot.Sources.Add(source);
-        }
-
-        QueryServerInfo(snapshot);
-
-        return snapshot;
     }
 
     private List<PulseAudioDevice> QueryDeviceList(bool sinks)
     {
-        var collector = new DeviceListCollector();
-        IntPtr userData = GCHandle.ToIntPtr(GCHandle.Alloc(collector));
+        _queriedDevices.Clear();
+        _deviceQueryCompleted.Reset();
 
-        try
+        Lock(() =>
         {
-            Lock(() =>
-            {
-                IntPtr operation = sinks
-                    ? PulseAudioNative.pa_context_get_sink_info_list(_context, _deviceInfoCallback, userData)
-                    : PulseAudioNative.pa_context_get_source_info_list(_context, _deviceInfoCallback, userData);
+            IntPtr operation = sinks
+                ? PulseAudioNative.pa_context_get_sink_info_list(_context, _deviceInfoCallback, IntPtr.Zero)
+                : PulseAudioNative.pa_context_get_source_info_list(_context, _deviceInfoCallback, IntPtr.Zero);
 
-                if (operation == IntPtr.Zero)
-                    throw new AudioCaptureException($"Could not query PulseAudio devices: {GetError()}");
+            if (operation == IntPtr.Zero)
+                throw new AudioCaptureException($"Could not query PulseAudio devices: {GetError()}");
 
-                collector.Operation = operation;
-            });
+            _pendingOperation = operation;
+        });
 
-            // The end-of-list callback is dispatched by the main loop thread.
-            if (!collector.Completed.Wait(QueryTimeout))
-            {
-                // The operation is still pending, so it must not be unreferenced.
-                collector.Operation = IntPtr.Zero;
-                throw new AudioCaptureException("Timed out while querying PulseAudio devices.");
-            }
+        // The end-of-list callback is dispatched by the main loop thread.
+        bool completed = _deviceQueryCompleted.Wait(QueryTimeout);
+        UnrefPendingOperation();
 
-            return collector.Devices;
-        }
-        finally
-        {
-            UnrefOperation(collector);
-            ((GCHandle)userData).Free();
-        }
+        if (!completed)
+            throw new AudioCaptureException("Timed out while querying PulseAudio devices.");
+
+        return _queriedDevices;
     }
 
     private void OnDeviceInfo(IntPtr context, IntPtr info, int endOfList, IntPtr userData)
     {
-        if (userData == IntPtr.Zero)
-            return;
-
-        var collector = (DeviceListCollector)((GCHandle)userData).Target!;
-
         if (info != IntPtr.Zero)
         {
             var deviceInfo = Marshal.PtrToStructure<PulseAudioNative.DeviceInfo>(info);
-            collector.Devices.Add(new PulseAudioDevice
+            _queriedDevices.Add(new PulseAudioDevice
             {
                 Name = PulseAudioNative.ReadUtf8(deviceInfo.Name) ?? "",
                 Description = PulseAudioNative.ReadUtf8(deviceInfo.Description) ?? ""
@@ -246,64 +242,52 @@ internal sealed class PulseAudioConnection : IDisposable
         }
 
         if (endOfList != 0)
-            collector.Completed.Set();
+            _deviceQueryCompleted.Set();
     }
 
     private void QueryServerInfo(PulseAudioSnapshot snapshot)
     {
-        var collector = new ServerInfoCollector();
-        IntPtr userData = GCHandle.ToIntPtr(GCHandle.Alloc(collector));
+        _defaultSinkName = "";
+        _defaultSourceName = "";
+        _serverQueryCompleted.Reset();
 
-        try
+        Lock(() =>
         {
-            Lock(() =>
-            {
-                IntPtr operation = PulseAudioNative.pa_context_get_server_info(_context, _serverInfoCallback, userData);
-                if (operation != IntPtr.Zero)
-                    collector.Operation = operation;
-            });
+            IntPtr operation = PulseAudioNative.pa_context_get_server_info(_context, _serverInfoCallback, IntPtr.Zero);
+            if (operation != IntPtr.Zero)
+                _pendingOperation = operation;
+        });
 
-            if (!collector.Completed.Wait(QueryTimeout))
-            {
-                collector.Operation = IntPtr.Zero;
-                return;
-            }
+        bool completed = _serverQueryCompleted.Wait(QueryTimeout);
+        UnrefPendingOperation();
 
-            snapshot.DefaultSinkName = collector.DefaultSinkName;
-            snapshot.DefaultSourceName = collector.DefaultSourceName;
-        }
-        finally
-        {
-            UnrefOperation(collector);
-            ((GCHandle)userData).Free();
-        }
+        if (!completed)
+            return;
+
+        snapshot.DefaultSinkName = _defaultSinkName;
+        snapshot.DefaultSourceName = _defaultSourceName;
     }
 
     private void OnServerInfo(IntPtr context, IntPtr info, IntPtr userData)
     {
-        if (userData == IntPtr.Zero)
-            return;
-
-        var collector = (ServerInfoCollector)((GCHandle)userData).Target!;
-
         if (info != IntPtr.Zero)
         {
             var serverInfo = Marshal.PtrToStructure<PulseAudioNative.ServerInfo>(info);
-            collector.DefaultSinkName = PulseAudioNative.ReadUtf8(serverInfo.DefaultSinkName) ?? "";
-            collector.DefaultSourceName = PulseAudioNative.ReadUtf8(serverInfo.DefaultSourceName) ?? "";
+            _defaultSinkName = PulseAudioNative.ReadUtf8(serverInfo.DefaultSinkName) ?? "";
+            _defaultSourceName = PulseAudioNative.ReadUtf8(serverInfo.DefaultSourceName) ?? "";
         }
 
         // This callback is invoked exactly once, without an end-of-list marker.
-        collector.Completed.Set();
+        _serverQueryCompleted.Set();
     }
 
-    private void UnrefOperation(IOperationHolder holder)
+    private void UnrefPendingOperation()
     {
-        IntPtr operation = holder.Operation;
+        IntPtr operation = _pendingOperation;
         if (operation == IntPtr.Zero)
             return;
 
-        holder.Operation = IntPtr.Zero;
+        _pendingOperation = IntPtr.Zero;
         Lock(() => PulseAudioNative.pa_operation_unref(operation));
     }
 
@@ -348,26 +332,8 @@ internal sealed class PulseAudioConnection : IDisposable
         ReleaseAll();
         _disposed = true;
         _stateChanged.Dispose();
-    }
-
-    private interface IOperationHolder
-    {
-        IntPtr Operation { get; set; }
-    }
-
-    private sealed class DeviceListCollector : IOperationHolder
-    {
-        public readonly List<PulseAudioDevice> Devices = new();
-        public readonly ManualResetEventSlim Completed = new(false);
-        public IntPtr Operation { get; set; }
-    }
-
-    private sealed class ServerInfoCollector : IOperationHolder
-    {
-        public readonly ManualResetEventSlim Completed = new(false);
-        public IntPtr Operation { get; set; }
-        public string DefaultSinkName = "";
-        public string DefaultSourceName = "";
+        _deviceQueryCompleted.Dispose();
+        _serverQueryCompleted.Dispose();
     }
 }
 

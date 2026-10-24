@@ -36,7 +36,11 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
     private string _instanceDisplayName = "Debug Info";
     private double _deltaTime = 0;
 
-    private string _audioDeviceInfo = string.Empty;
+    private string[] _audioDeviceLines = Array.Empty<string>();
+    private string _fpsText = "FPS: 0.0";
+    private string _statsText = string.Empty;
+    private string _systemInfoText = string.Empty;
+    private double _systemInfoRefreshTimer;
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -47,7 +51,7 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
     public void SetAudioDeviceInfo(string info)
     {
-        _audioDeviceInfo = info;
+        _audioDeviceLines = string.IsNullOrWhiteSpace(info) ? Array.Empty<string>() : info.Split('\n');
     }
 
     public void SetInstanceDisplayName(string displayName)
@@ -77,12 +81,14 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
         _maxFps = 0;
         _fpsHistory.Clear();
         _frameCount = 0;
+        _statsText = string.Empty;
         _fpsTimer.Restart();
     }
 
     public void Update(float[] waveformData, float[] fftData, double deltaTime)
     {
         _deltaTime = deltaTime;
+        _systemInfoRefreshTimer += deltaTime;
 
         // Update FPS calculation
         _frameCount++;
@@ -102,9 +108,41 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
             _avgFps = _fpsHistory.Average();
 
+            _fpsText = $"FPS: {_currentFps:F1}";
+            _statsText = _fpsHistory.Count > 0
+                ? $"Min: {_minFps:F1} | Max: {_maxFps:F1} | Avg: {_avgFps:F1}"
+                : string.Empty;
+
             // Reset counters
             _frameCount = 0;
             _fpsTimer.Restart();
+        }
+
+        if (_config.ShowSystemInfo && _systemInfoRefreshTimer >= 1.0)
+        {
+            _systemInfoRefreshTimer = 0;
+            RefreshSystemInfo();
+        }
+    }
+
+    private void RefreshSystemInfo()
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            var gcMemory = GC.GetTotalMemory(false) / (1024 * 1024);
+            var workingSet = process.WorkingSet64 / (1024 * 1024);
+
+            _systemInfoText =
+                $"CPU Cores: {Environment.ProcessorCount}\n" +
+                $"Threads: {process.Threads.Count}\n" +
+                $"Working Set: {workingSet} MB\n" +
+                $"GC Memory: {gcMemory} MB\n" +
+                $"Gen 0/1/2 GC: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}";
+        }
+        catch
+        {
+            _systemInfoText = "System Info: Error reading data";
         }
     }
 
@@ -130,11 +168,11 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
             if (_config.ShowFpsStats)
             {
-                ImGui.TextColored(color, $"FPS: {_currentFps:F1}");
+                ImGui.TextColored(color, _fpsText);
 
-                if (_fpsHistory.Count > 0)
+                if (_statsText.Length > 0)
                 {
-                    ImGui.TextColored(color, $"Min: {_minFps:F1} | Max: {_maxFps:F1} | Avg: {_avgFps:F1}");
+                    ImGui.TextColored(color, _statsText);
                 }
 
                 if (_config.ShowSystemInfo || _config.ShowAudioDeviceInfo || _config.ShowHotkeyTooltip)
@@ -143,30 +181,16 @@ public class DebugInfoVisualizer : IVisualizer, IConfigurable
 
             if (_config.ShowSystemInfo)
             {
-                try
-                {
-                    var process = Process.GetCurrentProcess();
-                    var gcMemory = GC.GetTotalMemory(false) / (1024 * 1024);
-                    var workingSet = process.WorkingSet64 / (1024 * 1024);
+                ImGui.TextColored(color, _systemInfoText);
+                ImGui.TextColored(color, $"Frame Time: {_deltaTime * 1000:F1}ms");
 
-                    ImGui.TextColored(color, $"CPU Cores: {Environment.ProcessorCount}");
-                    ImGui.TextColored(color, $"Threads: {process.Threads.Count}");
-                    ImGui.TextColored(color, $"Working Set: {workingSet} MB");
-                    ImGui.TextColored(color, $"GC Memory: {gcMemory} MB");
-                    ImGui.TextColored(color, $"Gen 0/1/2 GC: {GC.CollectionCount(0)}/{GC.CollectionCount(1)}/{GC.CollectionCount(2)}");
-                    ImGui.TextColored(color, $"Frame Time: {_deltaTime * 1000:F1}ms");
-                }
-                catch
-                {
-                    ImGui.TextColored(color, "System Info: Error reading data");
-                }
                 if (_config.ShowAudioDeviceInfo || _config.ShowHotkeyTooltip)
                     ImGui.Separator();
             }
 
-            if (_config.ShowAudioDeviceInfo && !string.IsNullOrWhiteSpace(_audioDeviceInfo))
+            if (_config.ShowAudioDeviceInfo && _audioDeviceLines.Length > 0)
             {
-                foreach (var line in _audioDeviceInfo.Split('\n'))
+                foreach (var line in _audioDeviceLines)
                 {
                     ImGui.TextColored(color, line);
                 }

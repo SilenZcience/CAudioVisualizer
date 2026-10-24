@@ -28,14 +28,13 @@ internal sealed class PulseAudioCapture : IAudioCapture
     private readonly PulseAudioNative.StreamNotifyCallback _stateCallback;
     private readonly PulseAudioNative.StreamRequestCallback _readCallback;
     private readonly ManualResetEventSlim _streamReady = new(false);
-    private readonly BlockingCollection<float[]> _blocks = new(new ConcurrentQueue<float[]>(), MaxQueuedBlocks);
+    private readonly BlockingCollection<float[]> _blocks = new(MaxQueuedBlocks);
     private readonly Thread _dispatchThread;
 
     private readonly byte[] _readBuffer = new byte[ReadBufferSize];
     private readonly float[] _pending = new float[BlockSize * 4];
     private readonly object _drainLock = new();
 
-    private GCHandle _selfHandle;
     private IntPtr _stream;
     private PulseAudioNative.StreamState _streamState = PulseAudioNative.StreamState.Unconnected;
     private int _pendingCount;
@@ -59,7 +58,6 @@ internal sealed class PulseAudioCapture : IAudioCapture
 
         _stateCallback = OnStreamStateChanged;
         _readCallback = OnReadRequest;
-        _selfHandle = GCHandle.Alloc(this);
 
         _connection = new PulseAudioConnection("CAudioVisualizer (capture)");
 
@@ -81,7 +79,7 @@ internal sealed class PulseAudioCapture : IAudioCapture
                     throw new AudioCaptureException($"Could not create PulseAudio stream for '{sourceName}': {_connection.GetError()}");
 
                 PulseAudioNative.pa_stream_set_state_callback(_stream, _stateCallback, IntPtr.Zero);
-                PulseAudioNative.pa_stream_set_read_callback(_stream, _readCallback, GCHandle.ToIntPtr(_selfHandle));
+                PulseAudioNative.pa_stream_set_read_callback(_stream, _readCallback, IntPtr.Zero);
 
                 if (PulseAudioNative.pa_stream_connect_record(_stream, sourceName, ref bufferAttributes, 0) < 0)
                 {
@@ -101,7 +99,6 @@ internal sealed class PulseAudioCapture : IAudioCapture
         {
             ReleaseStream();
             _connection.Dispose();
-            FreeSelfHandle();
             throw;
         }
 
@@ -398,12 +395,5 @@ internal sealed class PulseAudioCapture : IAudioCapture
 
         ReleaseStream();
         _connection.Dispose();
-        FreeSelfHandle();
-    }
-
-    private void FreeSelfHandle()
-    {
-        if (_selfHandle.IsAllocated)
-            _selfHandle.Free();
     }
 }

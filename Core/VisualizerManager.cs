@@ -7,6 +7,8 @@ namespace CAudioVisualizer.Core;
 public class VisualizerManager : IDisposable
 {
     private readonly Dictionary<string, VisualizerInstance> _instances = new();
+    private readonly List<VisualizerInstance> _orderedInstances = new();
+    private bool _orderDirty = true;
     private Vector2i _currentWindowSize = new Vector2i(800, 600); // Default fallback size
     private BackgroundRenderer? _backgroundRenderer;
     private PostProcessingRenderer? _postProcessingRenderer;
@@ -26,6 +28,7 @@ public class VisualizerManager : IDisposable
         }
 
         _instances[instance.InstanceId] = instance;
+        _orderDirty = true;
         instance.Visualizer.SetVisualizerManager(this);
 
         // Set instance display name for visualizers that need unique identification
@@ -54,10 +57,25 @@ public class VisualizerManager : IDisposable
         {
             instance.Visualizer.Dispose();
             _instances.Remove(instanceId);
+            _orderDirty = true;
             Console.WriteLine($"Removed visualizer instance: {instance.DisplayName} ({instanceId})");
             return true;
         }
         return false;
+    }
+
+    public List<VisualizerInstance> GetOrderedInstances() => GetOrderedInstancesInternal();
+
+    private List<VisualizerInstance> GetOrderedInstancesInternal()
+    {
+        if (_orderDirty)
+        {
+            _orderedInstances.Clear();
+            _orderedInstances.AddRange(_instances.Values.OrderBy(i => i.CreatedAt));
+            _orderDirty = false;
+        }
+
+        return _orderedInstances;
     }
 
     public void UpdateVisualizers(float[] waveformData, float[] fftData, double deltaTime)
@@ -65,7 +83,7 @@ public class VisualizerManager : IDisposable
         _backgroundRenderer?.Update(waveformData, fftData, deltaTime);
         _postProcessingRenderer?.Update(waveformData, fftData, deltaTime);
 
-        foreach (var instance in _instances.Values.OrderBy(i => i.CreatedAt))
+        foreach (var instance in GetOrderedInstances())
         {
             if (instance.Visualizer.IsEnabled)
             {
@@ -79,11 +97,18 @@ public class VisualizerManager : IDisposable
         // Update current window size for all visualizers to reference
         _currentWindowSize = windowSize;
 
-        _postProcessingRenderer?.BeginCapture();
+        bool postProcessingActive = _postProcessingRenderer?.BeginCapture() ?? false;
+
+        if (!postProcessingActive && (_backgroundRenderer == null || !_backgroundRenderer.IsEnabled))
+        {
+            OpenTK.Graphics.OpenGL4.GL.Clear(
+                OpenTK.Graphics.OpenGL4.ClearBufferMask.ColorBufferBit |
+                OpenTK.Graphics.OpenGL4.ClearBufferMask.DepthBufferBit);
+        }
 
         _backgroundRenderer?.Render(projection);
 
-        foreach (var instance in _instances.Values.OrderBy(i => i.CreatedAt))
+        foreach (var instance in GetOrderedInstances())
         {
             if (instance.Visualizer.IsEnabled)
             {
@@ -91,7 +116,10 @@ public class VisualizerManager : IDisposable
             }
         }
 
-        _postProcessingRenderer?.EndCaptureAndRender();
+        if (postProcessingActive)
+        {
+            _postProcessingRenderer!.EndCaptureAndRender();
+        }
     }
 
     public Vector2i GetCurrentWindowSize()

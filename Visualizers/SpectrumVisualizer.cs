@@ -99,7 +99,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
             // Drop leftover trail frames (and their GPU geometry) when the trail is off.
             ClearTrailFrames();
 
-            var currentFrame = GenerateCurrentSpectrum();
+            var currentFrame = GenerateCurrentSpectrum(copyVertices: false);
             if (currentFrame.Vertices.Count == 0) return;
 
             Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
@@ -164,14 +164,15 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         _trailFrames.Clear();
     }
 
-    private SpectrumFrame GenerateCurrentSpectrum()
+    private SpectrumFrame GenerateCurrentSpectrum(bool copyVertices = true)
     {
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+        _mainVertexBuffer.Clear();
         if (dataSource.Length == 0)
         {
             return new SpectrumFrame
             {
-                Vertices = new List<float>(),
+                Vertices = copyVertices ? new List<float>() : _mainVertexBuffer,
                 Color = _config.Color,
                 Alpha = 1.0f,
                 BarWidth = _config.BarWidth
@@ -209,8 +210,6 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
         Vector3 color = _config.UseTimeColor ? TimeColorHelper.GetTimeBasedColor() :
                        _config.UseRealTimeColor ? TimeColorHelper.GetRealTimeBasedColor() : _config.Color;
         if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
-
-        _mainVertexBuffer.Clear();
 
         var distributedSize = _config.Size / (count * 2);
         var adjustedBarWidth = _config.BarWidth + _config.BarWidth * distributedSize;
@@ -312,7 +311,7 @@ public class SpectrumVisualizer : IVisualizer, IConfigurable
 
         return new SpectrumFrame
         {
-            Vertices = new List<float>(_mainVertexBuffer),
+            Vertices = copyVertices ? new List<float>(_mainVertexBuffer) : _mainVertexBuffer,
             Color = color,
             Alpha = 1.0f,
             BarWidth = adjustedBarWidth

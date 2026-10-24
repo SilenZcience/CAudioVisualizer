@@ -59,6 +59,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
     private int _projectionLocation = -1;
     private readonly List<float> _vertexBuffer = new();
     private readonly List<float> _tempVertexBuffer = new();
+    private readonly Vector3[] _triangleScratch = new Vector3[3];
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -266,7 +267,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateTriangleVertices()
     {
-        var triangleFrame = GenerateCurrentTriangle();
+        var triangleFrame = GenerateCurrentTriangle(reuseVertices: true);
         _vertexBuffer.Clear();
 
         for (int i = 0; i < 3; i++)
@@ -284,7 +285,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         return _vertexBuffer;
     }
 
-    private TriangleFrame GenerateCurrentTriangle()
+    private TriangleFrame GenerateCurrentTriangle(bool reuseVertices = false)
     {
         int centerX = _config.PositionX;
         int centerY = _config.PositionY;
@@ -318,7 +319,7 @@ public class TriangleVisualizer : IVisualizer, IConfigurable
         if (_config.InvertColor) color = TimeColorHelper.InvertColor(color);
 
         // Generate triangle vertices
-        Vector3[] vertices = new Vector3[3];
+        Vector3[] vertices = reuseVertices ? _triangleScratch : new Vector3[3];
         for (int i = 0; i < 3; i++)
         {
             // Each point is 120 degrees apart (360/3 = 120)

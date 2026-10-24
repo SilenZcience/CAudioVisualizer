@@ -33,9 +33,10 @@ public sealed class ThickLineRenderer
     private float _maxLineWidth = 1.0f;       // GL_ALIASED_LINE_WIDTH_RANGE max
     private float _maxSmoothLineWidth = 1.0f; // aliased max clamped to GL_SMOOTH_LINE_WIDTH_RANGE max
 
-    private readonly List<float> _expanded = new();
-    private readonly List<Vector2> _inOffset = new();
-    private readonly List<Vector2> _outOffset = new();
+    private float[] _expanded = Array.Empty<float>();
+    private int _expandedCount;
+    private Vector2[] _inOffset = Array.Empty<Vector2>();
+    private Vector2[] _outOffset = Array.Empty<Vector2>();
 
     // Scratch buffers for ExpandPolyline, reused every call to keep the hot path
     // allocation-free.
@@ -97,7 +98,7 @@ public sealed class ThickLineRenderer
         float feather = smooth ? 1.0f : 0.0f;
 
         Expand(mode, vertices, count, outer, smooth);
-        if (_expanded.Count == 0) return;
+        if (_expandedCount == 0) return;
 
         // The feathered edge only works when blending is on; trail renderers disable it
         // when they finish, so make sure it is on for this draw and restore it after.
@@ -106,18 +107,17 @@ public sealed class ThickLineRenderer
 
         GL.BindVertexArray(_vaoExpanded);
         GL.BindBuffer(BufferTarget.ArrayBuffer, _vbo);
-        var span = CollectionsMarshal.AsSpan(_expanded);
-        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.DynamicDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, _expandedCount * sizeof(float), _expanded, BufferUsageHint.DynamicDraw);
         GL.Uniform1(_outerLocation, outer);
         GL.Uniform1(_featherLocation, feather);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, _expanded.Count / ExpFloats);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, _expandedCount / ExpFloats);
 
         if (!blendWasEnabled) GL.Disable(EnableCap.Blend);
     }
 
     private void Expand(ThickLineMode mode, List<float> vertices, int count, float outer, bool smooth)
     {
-        _expanded.Clear();
+        _expandedCount = 0;
         switch (mode)
         {
             case ThickLineMode.Lines:
@@ -170,16 +170,15 @@ public sealed class ThickLineRenderer
         geometry.Feather = smooth ? 1.0f : 0.0f;
 
         Expand(mode, vertices, count, geometry.Outer, smooth);
-        if (_expanded.Count == 0) return geometry;
+        if (_expandedCount == 0) return geometry;
 
         geometry.Vbo = GL.GenBuffer();
         geometry.Vao = GL.GenVertexArray();
         GL.BindVertexArray(geometry.Vao);
         GL.BindBuffer(BufferTarget.ArrayBuffer, geometry.Vbo);
-        var span = CollectionsMarshal.AsSpan(_expanded);
-        GL.BufferData(BufferTarget.ArrayBuffer, span.Length * sizeof(float), ref span[0], BufferUsageHint.StaticDraw);
+        GL.BufferData(BufferTarget.ArrayBuffer, _expandedCount * sizeof(float), _expanded, BufferUsageHint.StaticDraw);
         ConfigureExpandedAttribs();
-        geometry.VertexCount = _expanded.Count / ExpFloats;
+        geometry.VertexCount = _expandedCount / ExpFloats;
 
         return geometry;
     }
@@ -249,6 +248,8 @@ public sealed class ThickLineRenderer
             _posScratch = new Vector2[count];
             _dInScratch = new Vector2[count];
             _dOutScratch = new Vector2[count];
+            _inOffset = new Vector2[count];
+            _outOffset = new Vector2[count];
         }
         Vector2[] pos = _posScratch;
         Vector2[] dIn = _dInScratch;
@@ -271,9 +272,6 @@ public sealed class ThickLineRenderer
                 dOut[i] = i < count - 1 ? Normalized(pos, count, i + 1, i) : default;
             }
         }
-
-        _inOffset.Clear();
-        _outOffset.Clear();
 
         for (int i = 0; i < count; i++)
         {
@@ -309,8 +307,8 @@ public sealed class ThickLineRenderer
                 if (hasOut) outM = Perp(dOut[i]) * outer;
             }
 
-            _inOffset.Add(inM);
-            _outOffset.Add(outM);
+            _inOffset[i] = inM;
+            _outOffset[i] = outM;
         }
 
         for (int i = 0; i < segments; i++)
@@ -434,27 +432,42 @@ public sealed class ThickLineRenderer
 
     private void AddVertex(List<float> src, int vertexIndex, float x, float y, float side)
     {
+        EnsureExpandedCapacity(ExpFloats);
         int o = vertexIndex * SrcFloats;
-        _expanded.Add(x);
-        _expanded.Add(y);
-        _expanded.Add(src[o + 2]);
-        _expanded.Add(src[o + 3]);
-        _expanded.Add(src[o + 4]);
-        _expanded.Add(src[o + 5]);
-        _expanded.Add(src[o + 6]);
-        _expanded.Add(side);
+        int d = _expandedCount;
+        _expanded[d] = x;
+        _expanded[d + 1] = y;
+        _expanded[d + 2] = src[o + 2];
+        _expanded[d + 3] = src[o + 3];
+        _expanded[d + 4] = src[o + 4];
+        _expanded[d + 5] = src[o + 5];
+        _expanded[d + 6] = src[o + 6];
+        _expanded[d + 7] = side;
+        _expandedCount += ExpFloats;
     }
 
     private void AddVertexF(float x, float y, float z, float r, float g, float b, float a, float side)
     {
-        _expanded.Add(x);
-        _expanded.Add(y);
-        _expanded.Add(z);
-        _expanded.Add(r);
-        _expanded.Add(g);
-        _expanded.Add(b);
-        _expanded.Add(a);
-        _expanded.Add(side);
+        EnsureExpandedCapacity(ExpFloats);
+        int d = _expandedCount;
+        _expanded[d] = x;
+        _expanded[d + 1] = y;
+        _expanded[d + 2] = z;
+        _expanded[d + 3] = r;
+        _expanded[d + 4] = g;
+        _expanded[d + 5] = b;
+        _expanded[d + 6] = a;
+        _expanded[d + 7] = side;
+        _expandedCount += ExpFloats;
+    }
+
+    private void EnsureExpandedCapacity(int additional)
+    {
+        int required = _expandedCount + additional;
+        if (required <= _expanded.Length) return;
+
+        int newSize = Math.Max(required, Math.Max(256, _expanded.Length * 2));
+        Array.Resize(ref _expanded, newSize);
     }
 
     private static PrimitiveType ToPrimitive(ThickLineMode mode) => mode switch

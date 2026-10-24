@@ -25,6 +25,9 @@ public class AudioVisualizerWindow : GameWindow
     private float[] _fftData = new float[BUFFER_SIZE / 2]; // Only need first half of FFT
     private static readonly float[] HannWindow = CreateHannWindow(BUFFER_SIZE);
 
+    private long _audioVersion;
+    private long _lastFftVersion = -1;
+
     private VisualizerManager _visualizerManager = null!;
 
     private ImGuiController _imGuiController = null!;
@@ -154,10 +157,12 @@ public class AudioVisualizerWindow : GameWindow
             lock (_bufferLock)
             {
                 _audioBuffer.Clear();
+                _audioVersion++;
             }
 
             _waveformData = new float[BUFFER_SIZE];
             _fftData = new float[BUFFER_SIZE / 2];
+            _lastFftVersion = -1;
 
             SetupAudioCapture();
 
@@ -186,6 +191,9 @@ public class AudioVisualizerWindow : GameWindow
                 int samplesToRemove = _audioBuffer.Count - BUFFER_SIZE * 2;
                 _audioBuffer.RemoveRange(0, samplesToRemove);
             }
+
+            if (count > 0)
+                _audioVersion++;
         }
     }
 
@@ -202,6 +210,7 @@ public class AudioVisualizerWindow : GameWindow
 
     private void ProcessAudioData()
     {
+        long version;
         lock (_bufferLock)
         {
             if (_audioBuffer.Count < BUFFER_SIZE) return;
@@ -211,14 +220,32 @@ public class AudioVisualizerWindow : GameWindow
             {
                 _waveformData[i] = _audioBuffer[startIndex + i];
             }
+
+            version = _audioVersion;
         }
 
-        // If waveform is silent, set FFT data to zero
-        bool isSilent = _waveformData.All(x => MathF.Abs(x) < 0.0001f);
+        if (version == _lastFftVersion) return;
+        _lastFftVersion = version;
+
         int fftLen = BUFFER_SIZE / 2;
+
+        // If waveform is silent, set FFT data to zero
+        bool isSilent = true;
+        for (int i = 0; i < BUFFER_SIZE; i++)
+        {
+            if (MathF.Abs(_waveformData[i]) >= 0.0001f)
+            {
+                isSilent = false;
+                break;
+            }
+        }
+
         if (isSilent)
         {
-            _fftData = new float[fftLen];
+            if (_fftData.Length != fftLen)
+                _fftData = new float[fftLen];
+            else
+                Array.Clear(_fftData);
             return;
         }
 
@@ -227,26 +254,31 @@ public class AudioVisualizerWindow : GameWindow
         {
             _fftBuffer[i] = new Complex32(_waveformData[i] * HannWindow[i], 0);
         }
-        // Perform FFT
+
         Fourier.Forward(_fftBuffer, FourierOptions.Matlab);
 
-        // // Extract magnitudes for first half (avoid mirroring)
-        // for (int i = 0; i < BUFFER_SIZE / 2; i++)
-        // {
-        //     _fftData[i] = _fftBuffer[i].Magnitude;
-        //     // _fftData[i] = MathF.Sqrt(_fftBuffer[i].Magnitude);
-        // }
-
         // cut out silent mid frequencies ...
-        int belowThreshold = Enumerable.Range(0, fftLen)
-            .Count(i => _fftBuffer[i].Magnitude < 0.005f);
+        int belowThreshold = 0;
+        for (int i = 0; i < fftLen; i++)
+        {
+            if (_fftBuffer[i].Magnitude < 0.005f)
+                belowThreshold++;
+        }
+
         float cutFraction = Math.Min(0.25f, (float)belowThreshold / fftLen);
         int cutLen = (int)(cutFraction * fftLen);
         int midStart = (fftLen - cutLen) / 2;
         int midEnd = midStart + cutLen;
-        _fftData = [.. Enumerable.Range(0, fftLen)
-            .Where(i => i < midStart || i >= midEnd)
-            .Select(i => _fftBuffer[i].Magnitude)];
+        int outputLength = fftLen - cutLen;
+
+        if (_fftData.Length != outputLength)
+            _fftData = new float[outputLength];
+
+        int writeIndex = 0;
+        for (int i = 0; i < midStart; i++)
+            _fftData[writeIndex++] = _fftBuffer[i].Magnitude;
+        for (int i = midEnd; i < fftLen; i++)
+            _fftData[writeIndex++] = _fftBuffer[i].Magnitude;
     }
 
     protected override void OnRenderFrame(FrameEventArgs e)

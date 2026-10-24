@@ -57,6 +57,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
     private int _pointSizeLocation = -1;
     private readonly List<float> _vertexBuffer = new();
     private readonly List<float> _tempVertexBuffer = new();
+    private readonly List<Vector3> _dotScratch = new();
 
     private Vector2i CurrentWindowSize => _visualizerManager?.GetCurrentWindowSize() ?? new Vector2i(800, 600);
 
@@ -203,7 +204,7 @@ public class CircleVisualizer : IVisualizer, IConfigurable
 
     private List<float> GenerateCircleDots()
     {
-        var circleFrame = GenerateCurrentCircle();
+        var circleFrame = GenerateCurrentCircle(_dotScratch);
         _vertexBuffer.Clear();
 
         foreach (var dotPos in circleFrame.DotPositions)
@@ -244,9 +245,10 @@ public class CircleVisualizer : IVisualizer, IConfigurable
         }
     }
 
-    private CircleFrame GenerateCurrentCircle()
+    private CircleFrame GenerateCurrentCircle(List<Vector3>? reusableBuffer = null)
     {
-        var dotPositions = new List<Vector3>();
+        var dotPositions = reusableBuffer ?? new List<Vector3>();
+        dotPositions.Clear();
 
         // Choose data source based on config
         float[] dataSource = _config.UseFFT ? _fftData : _audioData;
