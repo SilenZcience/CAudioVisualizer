@@ -36,6 +36,7 @@ public static class VisualizerFactory
         { "Circle", "Circle Visualizer" },
         { "Waveform", "Waveform Visualizer" },
         { "Spectrum", "Spectrum Visualizer" },
+        { "Geometric", "Geometric Visualizer" },
         { "CustomShader", "CustomShader Visualizer" },
         { "Debug", "Debug Info Visualizer" }
     };
@@ -48,6 +49,7 @@ public static class VisualizerFactory
             "Circle" => new CircleVisualizer(),
             "Waveform" => new WaveformVisualizer(),
             "Spectrum" => new SpectrumVisualizer(),
+            "Geometric" => new GeometricVisualizer(),
             "CustomShader" => new CustomShaderVisualizer(),
             "Debug" => new DebugInfoVisualizer(),
             _ => null
