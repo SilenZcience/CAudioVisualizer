@@ -12,33 +12,26 @@ public class GeometricConfig
     public Vector3 Color { get; set; } = new Vector3(0.0f, 0.8f, 1.0f);
     public int PositionX { get; set; } = -1;
     public int PositionY { get; set; } = -1;
-
-    public int GeometryMode { get; set; } = 2; // 0=Sphere, 1=Spiky Ball, 2=All
-
-    public float SphereRadius { get; set; } = 140.0f;
+    public float SphereRadius { get; set; } = 350.0f;
     public int SphereSegments { get; set; } = 24;
     public bool ShowSphere { get; set; } = true;
-
-    public int SpikyBallPoints { get; set; } = 64;
+    public int SpikyBallPoints { get; set; } = 32;
     public float SpikyBallRadius { get; set; } = 140.0f;
-    public float SpikyBallSpikeLength { get; set; } = 90.0f;
+    public float SpikyBallSpikeLength { get; set; } = 70.0f;
     public bool ShowSpikyBall { get; set; } = true;
-
-    public float RotationSpeed { get; set; } = 1.5f;
-    public float RotationAudioStrength { get; set; } = 1.0f;
-
-    public float EnergySensitivity { get; set; } = 4.0f;
+    public float RotationSpeed { get; set; } = 0.2f;
+    public float RotationAudioStrength { get; set; } = 0.5f;
+    public float AudioReactivity { get; set; } = 2.5f;
     public float PulseAudioStrength { get; set; } = 1.0f;
-
-    public float LineThickness { get; set; } = 3.0f;
-    public float Brightness { get; set; } = 1.2f;
-    public bool EnableTrails { get; set; } = true;
-    public float TrailFade { get; set; } = 0.82f;
-    public int TrailLength { get; set; } = 14;
-
+    public float LineThickness { get; set; } = 2.0f;
+    public float Brightness { get; set; } = 1.0f;
     public bool UseTimeColor { get; set; } = true;
     public bool UseRealTimeColor { get; set; } = false;
     public bool InvertColor { get; set; } = false;
+    public bool EnableFadeTrail { get; set; } = true;
+    public float FadeSpeed { get; set; } = 0.82f;
+    public int TrailLength { get; set; } = 14;
+    public bool UseFFT { get; set; } = false;
 }
 
 public struct GeometricFrame
@@ -82,32 +75,30 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
 
     public void Update(float[] audioData, float[] fftData, double deltaTime)
     {
-        _audioData = audioData ?? Array.Empty<float>();
-        _fftData = fftData ?? Array.Empty<float>();
+        _audioData = audioData;
+        _fftData = fftData;
 
-        // Audio energy from whichever source is stronger.
-        float waveformEnergy = GetEnergy(_audioData);
-        float fftEnergy = GetEnergy(_fftData);
-        float targetEnergy = Math.Max(waveformEnergy, fftEnergy) * _config.EnergySensitivity;
+        float[] dataSource = _config.UseFFT ? _fftData : _audioData;
+        float currentAmplitude = 0f;
+
+        if (dataSource.Length > 0)
+        {
+            float sum = 0f;
+            int sampleCount = Math.Min(64, dataSource.Length);
+            for (int i = 0; i < sampleCount; i++)
+            {
+                sum += Math.Abs(dataSource[i]);
+            }
+            currentAmplitude = sum / sampleCount * _config.AudioReactivity;
+        }
 
         // Peak-hold envelope: jumps instantly to the beat, decays smoothly back down.
         float decayFactor = (float)Math.Exp(-deltaTime * 5.0);
-        _smoothedEnergy = Math.Max(_smoothedEnergy * decayFactor, targetEnergy);
+        _smoothedEnergy = Math.Max(_smoothedEnergy * decayFactor, currentAmplitude);
         _smoothedEnergy = Math.Clamp(_smoothedEnergy, 0f, 25f);
 
-        // Rotation time always moves forward. Base speed from slider; audio only ADDS speed
-        // (never subtracts), so on a beat it spins faster — never stops or reverses.
         float audioSpeedBoost = _smoothedEnergy * _config.RotationAudioStrength * 10.0f;
         _visualTime += (float)deltaTime * (_config.RotationSpeed + audioSpeedBoost);
-    }
-
-    private static float GetEnergy(float[] data)
-    {
-        if (data == null || data.Length == 0) return 0f;
-        int count = Math.Min(data.Length, 512);
-        float sum = 0f;
-        for (int i = 0; i < count; i++) sum += data[i] * data[i];
-        return MathF.Sqrt(sum / count);
     }
 
     public void Render(Matrix4 projection)
@@ -118,14 +109,14 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         if (_config.PositionX == -1) _config.PositionX = windowSize.X / 2;
         if (_config.PositionY == -1) _config.PositionY = windowSize.Y / 2;
 
-        if (_config.EnableTrails)
+        if (_config.EnableFadeTrail)
         {
             UpdateTrails();
             RenderTrails(ref projection);
         }
         else
         {
-            ClearTrails();
+            ClearTrailFrames();
             var frame = GenerateFrame(_vertexBuffer);
             if (frame.Vertices.Count == 0) return;
             RenderFrame(frame.Vertices, frame.LineWidth, ref projection);
@@ -364,7 +355,7 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         for (int i = _trailFrames.Count - 1; i >= 0; i--)
         {
             var f = _trailFrames[i];
-            f.Alpha *= _config.TrailFade;
+            f.Alpha *= _config.FadeSpeed;
             if (f.Alpha < 0.01f || i >= _config.TrailLength)
             {
                 f.Geometry?.Dispose();
@@ -400,7 +391,7 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         GL.Disable(EnableCap.Blend);
     }
 
-    private void ClearTrails()
+    private void ClearTrailFrames()
     {
         if (_trailFrames.Count == 0) return;
         foreach (var frame in _trailFrames)
@@ -410,47 +401,42 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
 
     public void RenderConfigGui()
     {
-        if (!ImGui.CollapsingHeader("Geometric Visualizer", ImGuiTreeNodeFlags.DefaultOpen))
-            return;
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Geometry Settings");
+        ImGui.Separator();
 
-        var ws = CurrentWindowSize;
+        bool showSphere = _config.ShowSphere;
+        if (ImGui.Checkbox("Wireframe Sphere", ref showSphere)) _config.ShowSphere = showSphere;
+        if (_config.ShowSphere)
+        {
+            float sphereRadius = _config.SphereRadius;
+            if (ImGui.SliderFloat("Sphere Radius", ref sphereRadius, 40.0f, 500.0f)) _config.SphereRadius = sphereRadius;
+            int sphereSegments = _config.SphereSegments;
+            if (ImGui.SliderInt("Sphere Segments", ref sphereSegments, 8, 48)) _config.SphereSegments = sphereSegments;
+        }
+
+        bool showSpikyBall = _config.ShowSpikyBall;
+        if (ImGui.Checkbox("3D Spiky Ball", ref showSpikyBall)) _config.ShowSpikyBall = showSpikyBall;
+        if (_config.ShowSpikyBall)
+        {
+            float spikyRadius = _config.SpikyBallRadius;
+            if (ImGui.SliderFloat("Spiky Ball Radius", ref spikyRadius, 40.0f, 500.0f)) _config.SpikyBallRadius = spikyRadius;
+            float spikySpikeLen = _config.SpikyBallSpikeLength;
+            if (ImGui.SliderFloat("Spike Length", ref spikySpikeLen, 10.0f, 300.0f)) _config.SpikyBallSpikeLength = spikySpikeLen;
+            int spikyPoints = _config.SpikyBallPoints;
+            if (ImGui.SliderInt("Spike Count", ref spikyPoints, 12, 128)) _config.SpikyBallPoints = spikyPoints;
+        }
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Position");
         ImGui.Separator();
 
-        int px = _config.PositionX;
-        if (ImGui.SliderInt("Position X", ref px, 0, ws.X)) _config.PositionX = px;
-        int py = _config.PositionY;
-        if (ImGui.SliderInt("Position Y", ref py, 0, ws.Y)) _config.PositionY = py;
+        int posX = _config.PositionX;
+        if (ImGui.DragInt("Position X", ref posX, 1.0f, 0, CurrentWindowSize.X))
+            _config.PositionX = Math.Max(0, Math.Min(CurrentWindowSize.X, posX));
 
-        ImGui.Spacing();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Geometry");
-        ImGui.Separator();
-
-        int mode = _config.GeometryMode;
-        if (ImGui.Combo("Geometry Mode", ref mode, "Sphere\0Spiky Ball\0All\0"))
-        {
-            _config.GeometryMode = mode;
-            _config.ShowSphere = mode != 1;
-            _config.ShowSpikyBall = mode != 0;
-        }
-
-        bool showSphere = _config.ShowSphere;
-        if (ImGui.Checkbox("Wireframe Sphere", ref showSphere)) _config.ShowSphere = showSphere;
-        float sphereRadius = _config.SphereRadius;
-        if (ImGui.SliderFloat("Sphere Radius", ref sphereRadius, 40.0f, 500.0f)) _config.SphereRadius = sphereRadius;
-        int sphereSegments = _config.SphereSegments;
-        if (ImGui.SliderInt("Sphere Segments", ref sphereSegments, 8, 48)) _config.SphereSegments = sphereSegments;
-
-        bool showSpikyBall = _config.ShowSpikyBall;
-        if (ImGui.Checkbox("3D Spiky Ball", ref showSpikyBall)) _config.ShowSpikyBall = showSpikyBall;
-        float spikyRadius = _config.SpikyBallRadius;
-        if (ImGui.SliderFloat("Spiky Ball Radius", ref spikyRadius, 40.0f, 500.0f)) _config.SpikyBallRadius = spikyRadius;
-        float spikySpikeLen = _config.SpikyBallSpikeLength;
-        if (ImGui.SliderFloat("Spike Length", ref spikySpikeLen, 10.0f, 300.0f)) _config.SpikyBallSpikeLength = spikySpikeLen;
-        int spikyPoints = _config.SpikyBallPoints;
-        if (ImGui.SliderInt("Spike Count", ref spikyPoints, 12, 128)) _config.SpikyBallPoints = spikyPoints;
+        int posY = _config.PositionY;
+        if (ImGui.DragInt("Position Y", ref posY, 1.0f, 0, CurrentWindowSize.Y))
+            _config.PositionY = Math.Max(0, Math.Min(CurrentWindowSize.Y, posY));
 
         ImGui.Spacing();
         ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Motion & Audio Reaction");
@@ -461,8 +447,8 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         float rotationAudio = _config.RotationAudioStrength;
         if (ImGui.SliderFloat("Rotation Audio Strength", ref rotationAudio, 0.0f, 5.0f)) _config.RotationAudioStrength = rotationAudio;
 
-        float energySens = _config.EnergySensitivity;
-        if (ImGui.SliderFloat("Energy Sensitivity", ref energySens, 0.0f, 15.0f)) _config.EnergySensitivity = energySens;
+        float energySens = _config.AudioReactivity;
+        if (ImGui.SliderFloat("Audio Reactivity", ref energySens, 0.0f, 10.0f)) _config.AudioReactivity = energySens;
         float pulseStrength = _config.PulseAudioStrength;
         if (ImGui.SliderFloat("Pulse Audio Strength", ref pulseStrength, 0.0f, 5.0f)) _config.PulseAudioStrength = pulseStrength;
 
@@ -471,18 +457,21 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         float thickness = _config.LineThickness;
-        if (ImGui.SliderFloat("Line Thickness", ref thickness, 1.0f, 8.0f)) _config.LineThickness = thickness;
+        if (ImGui.SliderFloat("Line Thickness", ref thickness, 1.0f, 10.0f)) _config.LineThickness = thickness;
         float brightness = _config.Brightness;
         if (ImGui.SliderFloat("Brightness", ref brightness, 0.1f, 3.0f)) _config.Brightness = brightness;
 
-        bool trails = _config.EnableTrails;
-        if (ImGui.Checkbox("Trails", ref trails)) _config.EnableTrails = trails;
-        if (_config.EnableTrails)
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Audio Data Source");
+        ImGui.Separator();
+
+        bool useFFT = _config.UseFFT;
+        if (ImGui.Checkbox("Use FFT Data", ref useFFT))
+            _config.UseFFT = useFFT;
+
+        if (ImGui.IsItemHovered())
         {
-            float trailFade = _config.TrailFade;
-            if (ImGui.SliderFloat("Trail Fade", ref trailFade, 0.7f, 0.98f)) _config.TrailFade = trailFade;
-            int trailLen = _config.TrailLength;
-            if (ImGui.SliderInt("Trail Length", ref trailLen, 5, 40)) _config.TrailLength = trailLen;
+            ImGui.SetTooltip("Toggle between raw audio amplitude and FFT frequency spectrum.");
         }
 
         ImGui.Spacing();
@@ -490,18 +479,46 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
         ImGui.Separator();
 
         bool useTimeColor = _config.UseTimeColor;
-        if (ImGui.Checkbox("Rainbow", ref useTimeColor)) { _config.UseTimeColor = useTimeColor; if (useTimeColor) _config.UseRealTimeColor = false; }
+        if (ImGui.Checkbox("Rainbow Colors", ref useTimeColor))
+        {
+            _config.UseTimeColor = useTimeColor;
+            if (useTimeColor) _config.UseRealTimeColor = false;
+        }
         ImGui.SameLine();
         bool useRealTimeColor = _config.UseRealTimeColor;
-        if (ImGui.Checkbox("Time-based RGB", ref useRealTimeColor)) { _config.UseRealTimeColor = useRealTimeColor; if (useRealTimeColor) _config.UseTimeColor = false; }
+        if (ImGui.Checkbox("Time-based RGB (H:M:S)", ref useRealTimeColor))
+        {
+            _config.UseRealTimeColor = useRealTimeColor;
+            if (useRealTimeColor) _config.UseTimeColor = false;
+        }
         ImGui.SameLine();
         bool invertColor = _config.InvertColor;
-        if (ImGui.Checkbox("Invert", ref invertColor)) _config.InvertColor = invertColor;
+        if (ImGui.Checkbox("Invert Color", ref invertColor))
+            _config.InvertColor = invertColor;
 
         if (!_config.UseTimeColor && !_config.UseRealTimeColor)
         {
             var color = new System.Numerics.Vector3(_config.Color.X, _config.Color.Y, _config.Color.Z);
-            if (ImGui.ColorEdit3("Color", ref color)) _config.Color = new Vector3(color.X, color.Y, color.Z);
+            if (ImGui.ColorEdit3("Color", ref color))
+                _config.Color = new Vector3(color.X, color.Y, color.Z);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Fade Trail");
+        ImGui.Separator();
+
+        bool enableFadeTrails = _config.EnableFadeTrail;
+        if (ImGui.Checkbox("Enable Fade Trails", ref enableFadeTrails))
+            _config.EnableFadeTrail = enableFadeTrails;
+
+        if (_config.EnableFadeTrail)
+        {
+            float fadeSpeed = _config.FadeSpeed;
+            if (ImGui.SliderFloat("Trail Fade", ref fadeSpeed, 0.7f, 0.99f))
+                _config.FadeSpeed = fadeSpeed;
+            int trailLength = _config.TrailLength;
+            if (ImGui.SliderInt("Trail Length", ref trailLength, 5, 50))
+                _config.TrailLength = trailLength;
         }
 
         ImGui.Spacing();
@@ -537,14 +554,6 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
             if (config != null)
             {
                 _config = config;
-                if (_config.GeometryMode < 0 || _config.GeometryMode > 2)
-                    _config.GeometryMode = _config.GeometryMode >= 2 ? 2 : 0;
-                if (_config.PositionX == 0 && _config.PositionY == 0)
-                {
-                    var ws = CurrentWindowSize;
-                    _config.PositionX = ws.X / 2;
-                    _config.PositionY = ws.Y / 2;
-                }
             }
         }
         catch (Exception ex)
@@ -562,6 +571,8 @@ public class GeometricVisualizer : IVisualizer, IConfigurable
 
     public void Dispose()
     {
-        ClearTrails();
+        if (!_initialized) return;
+        ClearTrailFrames();
+        _initialized = false;
     }
 }
